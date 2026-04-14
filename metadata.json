@@ -1,6 +1,6 @@
 {
-  "name": "Web Analysis Agent",
-  "description": "Batch process CSV data with Gemini AI for web research and data extraction.",
+  "name": "batch-llm-processor",
+  "description": "A fast, client-side web application for running AI prompts against tabular data in bulk using Gemini models.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

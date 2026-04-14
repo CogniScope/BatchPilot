@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Papa from 'papaparse';
-import { Upload, Play, Download, Plus, Trash2, AlertCircle, CheckCircle2, Loader2, X, Activity, FileSpreadsheet, Sparkles, Wand2, Search, Filter, Info, Square } from 'lucide-react';
+import { Upload, Play, Download, Plus, Trash2, AlertCircle, CheckCircle2, Loader2, X, Activity, FileSpreadsheet, Sparkles, Wand2, Search, Filter, Info, Square, Eye } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { CsvData, OutputColumn, AgentTask, FilterRule } from './types';
 import { processRowWithGemini, generateOutputColumnsFromPrompt, improvePromptWithGemini } from './lib/gemini';
@@ -9,7 +9,7 @@ export default function App() {
   const [csvData, setCsvData] = useState<CsvData | null>(null);
   const [selectedInputColumns, setSelectedInputColumns] = useState<string[]>([]);
   const [outputColumns, setOutputColumns] = useState<OutputColumn[]>([
-    { id: '1', name: 'technological_stack', description: 'Find CRM and Marketing tools used' }
+    { id: '1', name: 'technological_stack', description: 'Find CRM and Marketing tools used', type: 'string' }
   ]);
   const [prompt, setPrompt] = useState<string>('Research the company website and identify the primary CRM and Marketing Automation tools they currently utilize. If not found, look for LinkedIn hiring posts for clues.');
   const [selectedModel, setSelectedModel] = useState<string>('gemini-3-flash-preview');
@@ -24,6 +24,8 @@ export default function App() {
   const [filterRules, setFilterRules] = useState<FilterRule[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  const [showColumnMenu, setShowColumnMenu] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -114,11 +116,25 @@ export default function App() {
     ? rowVirtualizer.getTotalSize() - (virtualItems[virtualItems.length - 1]?.end || 0)
     : 0;
 
-  const totalColumns = selectedInputColumns.length + outputColumns.length + 4;
+  const visibleInputColumns = selectedInputColumns.filter(c => !hiddenColumns.has(c));
+  const visibleOutputColumns = outputColumns.filter(c => !hiddenColumns.has(c.name));
+  const totalColumns = visibleInputColumns.length + visibleOutputColumns.length + 4;
 
   const effectiveIndices = selectedRows.size > 0 
     ? Array.from(selectedRows).filter(i => filteredIndices.includes(i))
     : filteredIndices;
+
+  const toggleColumnVisibility = (colName: string) => {
+    setHiddenColumns(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(colName)) {
+        newSet.delete(colName);
+      } else {
+        newSet.add(colName);
+      }
+      return newSet;
+    });
+  };
 
   const addFilterRule = () => {
     const defaultCol = selectedInputColumns.length > 0 ? selectedInputColumns[0] : '';
@@ -241,7 +257,7 @@ export default function App() {
   const addOutputColumn = () => {
     setOutputColumns(prev => [
       ...prev, 
-      { id: Date.now().toString(), name: `column_${prev.length + 1}`, description: '' }
+      { id: Date.now().toString(), name: `column_${prev.length + 1}`, description: '', type: 'string' }
     ]);
   };
 
@@ -450,7 +466,7 @@ export default function App() {
       <header>
         <div className="logo">
           <Activity className="w-5 h-5" />
-          GeminiFlow Agent
+          Batch LLM Processor
         </div>
       </header>
 
@@ -582,14 +598,27 @@ export default function App() {
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
-                <input 
-                  type="text" 
-                  value={col.name}
-                  onChange={(e) => updateOutputColumn(col.id, 'name', e.target.value)}
-                  placeholder="Column name..."
-                  disabled={isProcessing}
-                  style={{ paddingRight: '24px' }}
-                />
+                <div className="flex gap-2 pr-6">
+                  <input 
+                    type="text" 
+                    value={col.name}
+                    onChange={(e) => updateOutputColumn(col.id, 'name', e.target.value)}
+                    placeholder="Column name..."
+                    disabled={isProcessing}
+                    className="flex-1"
+                  />
+                  <select
+                    value={col.type}
+                    onChange={(e) => updateOutputColumn(col.id, 'type', e.target.value as any)}
+                    disabled={isProcessing}
+                    className="w-28 text-xs"
+                    title="Data Type"
+                  >
+                    <option value="string">Text</option>
+                    <option value="number">Number</option>
+                    <option value="boolean">True/False</option>
+                  </select>
+                </div>
                 <input 
                   type="text" 
                   value={col.description}
@@ -704,6 +733,53 @@ export default function App() {
                 >
                   <Filter className="w-3 h-3" /> Filters {filterRules.length > 0 && `(${filterRules.length})`}
                 </button>
+                
+                <div className="relative">
+                  <button 
+                    className={`btn-secondary ${showColumnMenu ? 'bg-gray-100' : ''}`}
+                    style={{ padding: '6px 12px', fontSize: '0.75rem' }}
+                    onClick={() => setShowColumnMenu(!showColumnMenu)}
+                  >
+                    <Eye className="w-3 h-3" /> Columns
+                  </button>
+                  {showColumnMenu && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-40" 
+                        onClick={() => setShowColumnMenu(false)}
+                      />
+                      <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-[var(--border)] rounded-md shadow-lg z-50 py-1 max-h-96 overflow-y-auto">
+                        <div className="px-3 py-1 text-xs font-semibold text-gray-500 bg-gray-50">Input Columns</div>
+                        {selectedInputColumns.map(col => (
+                          <label key={`menu_in_${col}`} className="flex items-center px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              className="mr-2"
+                              checked={!hiddenColumns.has(col)}
+                              onChange={() => toggleColumnVisibility(col)}
+                            />
+                            <span className="truncate">{col}</span>
+                          </label>
+                        ))}
+                        {selectedInputColumns.length === 0 && <div className="px-3 py-1 text-xs text-gray-400">None selected</div>}
+                        
+                        <div className="px-3 py-1 text-xs font-semibold text-gray-500 bg-gray-50 mt-1 border-t border-gray-100">Output Columns</div>
+                        {outputColumns.map(col => (
+                          <label key={`menu_out_${col.name}`} className="flex items-center px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              className="mr-2"
+                              checked={!hiddenColumns.has(col.name)}
+                              onChange={() => toggleColumnVisibility(col.name)}
+                            />
+                            <span className="truncate">{col.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 <button 
                   className="btn-secondary" 
                   style={{ padding: '6px 12px', fontSize: '0.75rem' }}
@@ -807,10 +883,10 @@ export default function App() {
                     </th>
                     <th style={{ width: '60px' }}>Row</th>
                     <th>Status</th>
-                    {selectedInputColumns.map(header => (
+                    {visibleInputColumns.map(header => (
                       <th key={`in_${header}`}>[IN] {header}</th>
                     ))}
-                    {outputColumns.map(col => (
+                    {visibleOutputColumns.map(col => (
                       <th key={`out_${col.id}`}>[OUT] {col.name}</th>
                     ))}
                     <th style={{ width: '100px', textAlign: 'center' }}>Actions</th>
@@ -885,12 +961,12 @@ export default function App() {
                             </div>
                           )}
                         </td>
-                        {selectedInputColumns.map(header => (
+                        {visibleInputColumns.map(header => (
                           <td key={`in_${header}_${rowIndex}`} title={row[header]}>
                             <span className="tag">{row[header]}</span>
                           </td>
                         ))}
-                        {outputColumns.map(col => {
+                        {visibleOutputColumns.map(col => {
                           const cellValue = isRunning ? `Processing row ${rowIndex + 1}...` : (task?.result?.[col.name] || (task?.status === 'error' ? 'ERROR' : '-'));
                           return (
                             <td key={`out_${col.id}_${rowIndex}`} style={{ color: isRunning ? '#999' : 'inherit', fontStyle: isRunning ? 'italic' : 'normal' }} title={cellValue}>

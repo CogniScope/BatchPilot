@@ -7,6 +7,7 @@ export interface OutputColumn {
   id: string;
   name: string;
   description: string;
+  type: 'string' | 'number' | 'boolean';
 }
 
 export interface AgentTask {

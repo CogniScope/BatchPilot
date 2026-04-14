@@ -83,7 +83,8 @@ ${prompt}
     return result.map((item: any, index: number) => ({
       id: `gen_${Date.now()}_${index}`,
       name: item.name,
-      description: item.description
+      description: item.description,
+      type: 'string'
     }));
   } catch (e) {
     throw new Error("Failed to parse Gemini response as JSON");
@@ -125,8 +126,12 @@ Please provide the output in the requested JSON format.
   const required: string[] = [];
 
   outputColumns.forEach((col) => {
+    let schemaType = Type.STRING;
+    if (col.type === 'number') schemaType = Type.NUMBER;
+    else if (col.type === 'boolean') schemaType = Type.BOOLEAN;
+
     properties[col.name] = {
-      type: Type.STRING,
+      type: schemaType,
       description: col.description || `The value for ${col.name}`,
     };
     required.push(col.name);
