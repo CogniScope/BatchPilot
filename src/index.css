@@ -304,6 +304,20 @@ th {
   z-index: 10;
 }
 
+.sticky-col-header {
+  z-index: 20;
+}
+
+.sticky-col-cell {
+  position: sticky;
+  background-color: inherit;
+  z-index: 5;
+}
+
+.sticky-col-divider {
+  border-right: 2px solid var(--border);
+}
+
 td {
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);

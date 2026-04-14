@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Papa from 'papaparse';
-import { Upload, Play, Download, Plus, Trash2, AlertCircle, CheckCircle2, Loader2, X, Activity, FileSpreadsheet, Sparkles, Wand2, Search, Filter, Info, Square, Eye } from 'lucide-react';
+import { Upload, Play, Download, Plus, Trash2, AlertCircle, CheckCircle2, Loader2, X, Activity, FileSpreadsheet, Sparkles, Wand2, Search, Filter, Info, Square, Eye, Pencil } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { CsvData, OutputColumn, AgentTask, FilterRule } from './types';
 import { processRowWithGemini, generateOutputColumnsFromPrompt, improvePromptWithGemini } from './lib/gemini';
@@ -26,6 +26,8 @@ export default function App() {
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
   const [showColumnMenu, setShowColumnMenu] = useState(false);
+  const [editingColumn, setEditingColumn] = useState<string | null>(null);
+  const [editingColumnName, setEditingColumnName] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -249,9 +251,47 @@ export default function App() {
     setSelectedInputColumns([]);
   };
 
-  const handleInputColumnChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedOptions = Array.from(e.target.selectedOptions).map(opt => opt.value);
-    setSelectedInputColumns(selectedOptions);
+  const saveColumnRename = (oldName: string) => {
+    const newName = editingColumnName.trim();
+    if (!newName || newName === oldName) {
+      setEditingColumn(null);
+      return;
+    }
+    if (csvData?.headers.includes(newName)) {
+      setError(`A column named "${newName}" already exists.`);
+      setEditingColumn(null);
+      return;
+    }
+
+    setCsvData(prev => {
+      if (!prev) return prev;
+      const newHeaders = prev.headers.map(h => h === oldName ? newName : h);
+      const newRows = prev.rows.map(row => {
+        const newRow = { ...row };
+        newRow[newName] = newRow[oldName];
+        delete newRow[oldName];
+        return newRow;
+      });
+      return { headers: newHeaders, rows: newRows };
+    });
+
+    setSelectedInputColumns(prev => prev.map(c => c === oldName ? newName : c));
+    setHiddenColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(oldName)) {
+        next.delete(oldName);
+        next.add(newName);
+      }
+      return next;
+    });
+    setFilterRules(prev => prev.map(rule => 
+      (rule.columnType === 'input' && rule.column === oldName) 
+        ? { ...rule, column: newName } 
+        : rule
+    ));
+
+    setEditingColumn(null);
+    setError(null);
   };
 
   const addOutputColumn = () => {
@@ -528,19 +568,50 @@ export default function App() {
                 Clear Selected
               </button>
             </div>
-            <select 
-              multiple 
-              style={{ height: '100px' }}
-              value={selectedInputColumns}
-              onChange={handleInputColumnChange}
-              disabled={!csvData || isProcessing}
-            >
+            <div className="border border-[var(--border)] rounded-md overflow-y-auto bg-white" style={{ height: '150px' }}>
+              {!csvData && <div className="p-3 text-sm text-gray-400 italic">Upload CSV first...</div>}
               {csvData?.headers.map(header => (
-                <option key={header} value={header}>{header}</option>
+                <div key={header} className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] last:border-0 hover:bg-gray-50 group">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedInputColumns.includes(header)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedInputColumns(prev => [...prev, header]);
+                        } else {
+                          setSelectedInputColumns(prev => prev.filter(c => c !== header));
+                        }
+                      }}
+                      disabled={isProcessing}
+                    />
+                    {editingColumn === header ? (
+                      <input 
+                        type="text" 
+                        value={editingColumnName}
+                        onChange={(e) => setEditingColumnName(e.target.value)}
+                        onBlur={() => saveColumnRename(header)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') saveColumnRename(header); if (e.key === 'Escape') setEditingColumn(null); }}
+                        autoFocus
+                        className="flex-1 text-sm border border-[var(--accent)] rounded px-1 py-0.5 outline-none"
+                        disabled={isProcessing}
+                      />
+                    ) : (
+                      <span className="text-sm truncate" title={header}>{header}</span>
+                    )}
+                  </div>
+                  {!isProcessing && editingColumn !== header && (
+                    <button 
+                      onClick={() => { setEditingColumn(header); setEditingColumnName(header); }}
+                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-[var(--accent)] p-1"
+                      title="Rename column"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               ))}
-              {!csvData && <option disabled>Upload CSV first...</option>}
-            </select>
-            <span className="text-xs text-[var(--text-secondary)]">Hold Ctrl/Cmd to select multiple</span>
+            </div>
           </div>
 
           <div className="form-group">
@@ -592,26 +663,20 @@ export default function App() {
             </div>
             {outputColumns.map((col) => (
               <div key={col.id} className="flex flex-col gap-2 p-2 border border-[var(--border)] rounded-md bg-[#FAFAFA] relative">
-                <button 
-                  onClick={() => removeOutputColumn(col.id)}
-                  className="absolute top-2 right-2 text-red-500 hover:opacity-70"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-                <div className="flex gap-2 pr-6">
+                <div className="flex gap-2 items-center pr-6">
                   <input 
                     type="text" 
                     value={col.name}
                     onChange={(e) => updateOutputColumn(col.id, 'name', e.target.value)}
                     placeholder="Column name..."
                     disabled={isProcessing}
-                    className="flex-1"
+                    className="flex-1 min-w-0"
                   />
                   <select
                     value={col.type}
                     onChange={(e) => updateOutputColumn(col.id, 'type', e.target.value as any)}
                     disabled={isProcessing}
-                    className="w-28 text-xs"
+                    className="w-24 text-xs shrink-0"
                     title="Data Type"
                   >
                     <option value="string">Text</option>
@@ -627,6 +692,12 @@ export default function App() {
                   style={{ fontSize: '0.75rem', color: '#666' }}
                   disabled={isProcessing}
                 />
+                <button 
+                  onClick={() => removeOutputColumn(col.id)}
+                  className="absolute top-2 right-2 text-red-500 hover:opacity-70 p-1 bg-[#FAFAFA] rounded-full"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
               </div>
             ))}
           </div>
@@ -859,7 +930,7 @@ export default function App() {
               <table>
                 <thead>
                   <tr>
-                    <th style={{ width: '40px', textAlign: 'center' }}>
+                    <th className="sticky-col-header" style={{ left: 0, width: '40px', textAlign: 'center' }}>
                       <input 
                         type="checkbox" 
                         checked={filteredIndices.length > 0 && filteredIndices.every(i => selectedRows.has(i))}
@@ -881,15 +952,15 @@ export default function App() {
                         }}
                       />
                     </th>
-                    <th style={{ width: '60px' }}>Row</th>
-                    <th>Status</th>
+                    <th className="sticky-col-header" style={{ left: '40px', width: '60px' }}>Row</th>
+                    <th className="sticky-col-header" style={{ left: '100px', width: '120px' }}>Status</th>
+                    <th className="sticky-col-header sticky-col-divider" style={{ left: '220px', width: '120px', textAlign: 'center' }}>Actions</th>
                     {visibleInputColumns.map(header => (
                       <th key={`in_${header}`}>[IN] {header}</th>
                     ))}
                     {visibleOutputColumns.map(col => (
                       <th key={`out_${col.id}`}>[OUT] {col.name}</th>
                     ))}
-                    <th style={{ width: '100px', textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -923,10 +994,10 @@ export default function App() {
                         key={virtualRow.key} 
                         data-index={virtualRow.index}
                         ref={rowVirtualizer.measureElement}
-                        style={{ background: isRunning ? '#F9FAFB' : 'transparent' }}
+                        style={{ background: isRunning ? '#F9FAFB' : 'white' }}
                         className="group"
                       >
-                        <td style={{ textAlign: 'center' }}>
+                        <td className="sticky-col-cell" style={{ left: 0, textAlign: 'center' }}>
                           <input 
                             type="checkbox"
                             checked={selectedRows.has(rowIndex)}
@@ -941,8 +1012,8 @@ export default function App() {
                             }}
                           />
                         </td>
-                        <td style={{ color: 'var(--text-secondary)' }}>{rowIndex + 1}</td>
-                        <td>
+                        <td className="sticky-col-cell" style={{ left: '40px', color: 'var(--text-secondary)' }}>{rowIndex + 1}</td>
+                        <td className="sticky-col-cell" style={{ left: '100px' }}>
                           {!task || task.status === 'pending' ? (
                             <div className="status-badge status-pending" title="Waiting to be processed">
                               <div className="dot dot-pending"></div>Pending
@@ -961,20 +1032,7 @@ export default function App() {
                             </div>
                           )}
                         </td>
-                        {visibleInputColumns.map(header => (
-                          <td key={`in_${header}_${rowIndex}`} title={row[header]}>
-                            <span className="tag">{row[header]}</span>
-                          </td>
-                        ))}
-                        {visibleOutputColumns.map(col => {
-                          const cellValue = isRunning ? `Processing row ${rowIndex + 1}...` : (task?.result?.[col.name] || (task?.status === 'error' ? 'ERROR' : '-'));
-                          return (
-                            <td key={`out_${col.id}_${rowIndex}`} style={{ color: isRunning ? '#999' : 'inherit', fontStyle: isRunning ? 'italic' : 'normal' }} title={cellValue}>
-                              {cellValue}
-                            </td>
-                          );
-                        })}
-                        <td style={{ textAlign: 'center' }}>
+                        <td className="sticky-col-cell sticky-col-divider" style={{ left: '220px', textAlign: 'center' }}>
                           <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button 
                               onClick={() => runSingleRow(rowIndex)} 
@@ -1001,6 +1059,19 @@ export default function App() {
                             </button>
                           </div>
                         </td>
+                        {visibleInputColumns.map(header => (
+                          <td key={`in_${header}_${rowIndex}`} title={row[header]}>
+                            <span className="tag">{row[header]}</span>
+                          </td>
+                        ))}
+                        {visibleOutputColumns.map(col => {
+                          const cellValue = isRunning ? `Processing row ${rowIndex + 1}...` : (task?.result?.[col.name] || (task?.status === 'error' ? 'ERROR' : '-'));
+                          return (
+                            <td key={`out_${col.id}_${rowIndex}`} style={{ color: isRunning ? '#999' : 'inherit', fontStyle: isRunning ? 'italic' : 'normal' }} title={cellValue}>
+                              {cellValue}
+                            </td>
+                          );
+                        })}
                       </tr>
                     );
                   })}
