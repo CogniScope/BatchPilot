@@ -1,0 +1,6 @@
+{
+  "name": "Web Analysis Agent",
+  "description": "Batch process CSV data with Gemini AI for web research and data extraction.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
