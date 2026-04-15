@@ -48,9 +48,38 @@ export default function App() {
 
   const colW = (key: string): number => columnWidths[key] ?? DEFAULT_WIDTHS[key] ?? 200;
 
+  const startResize = (e: React.PointerEvent<HTMLDivElement>, colKey: string) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = colW(colKey);
+
+    const onMove = (ev: PointerEvent) => {
+      const newWidth = Math.max(60, startWidth + (ev.clientX - startX));
+      setColumnWidths(prev => {
+        const next = { ...prev, [colKey]: newWidth };
+        localStorage.setItem(LS_KEY, JSON.stringify(next));
+        return next;
+      });
+    };
+
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      dragState.current = null;
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    dragState.current = { onMove, onUp };
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const isHaltedRef = useRef(false);
+  const dragState = useRef<{
+    onMove: (e: PointerEvent) => void;
+    onUp: () => void;
+  } | null>(null);
 
   const filteredIndices = useMemo(() => {
     if (!csvData) return [];
