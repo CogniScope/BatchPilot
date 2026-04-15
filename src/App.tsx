@@ -1,6 +1,6 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import Papa from 'papaparse';
-import { Upload, Play, Download, Plus, Trash2, AlertCircle, CheckCircle2, Loader2, X, Activity, FileSpreadsheet, Sparkles, Wand2, Search, Filter, Info, Square, Eye, Pencil } from 'lucide-react';
+import { Play, Download, Plus, Trash2, AlertCircle, Loader2, X, Activity, FileSpreadsheet, Sparkles, Wand2, Search, Filter, Info, Square, Eye, Pencil } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { CsvData, OutputColumn, AgentTask, FilterRule } from './types';
 import { processRowWithGemini, generateOutputColumnsFromPrompt, improvePromptWithGemini } from './lib/gemini';
@@ -718,6 +718,8 @@ export default function App() {
               <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Best Reasoning)</option>
               <option value="gemini-3-flash-preview">Gemini 3.0 Flash</option>
               <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (Faster)</option>
+              <option value="gemini-2.5-pro-preview-05-06">Gemini 2.5 Pro</option>
+              <option value="gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash</option>
             </select>
           </div>
 
