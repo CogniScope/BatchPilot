@@ -344,7 +344,7 @@ export default function App() {
       return newTasks;
     });
 
-    // Process in parallel with a concurrency limit (e.g., 5)
+    // Process in parallel with a concurrency limit
     const concurrencyLimit = 25;
     let currentIndex = 0;
     const indicesToProcess = [...effectiveIndices];
@@ -435,6 +435,7 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const deleteSingleRow = (rowIndex: number) => {
@@ -495,6 +496,7 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const completedCount = tasks.filter(t => t.status === 'completed' || t.status === 'error').length;
@@ -879,7 +881,9 @@ export default function App() {
                       className="input-field py-1 px-2 text-xs w-40"
                       value={`${rule.columnType}:${rule.column}`}
                       onChange={e => {
-                        const [type, col] = e.target.value.split(':');
+                        const colonIndex = e.target.value.indexOf(':');
+                        const type = e.target.value.slice(0, colonIndex);
+                        const col = e.target.value.slice(colonIndex + 1);
                         updateFilterRule(rule.id, 'columnType', type as 'input' | 'output');
                         updateFilterRule(rule.id, 'column', col);
                       }}
