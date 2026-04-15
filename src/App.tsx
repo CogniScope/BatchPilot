@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Papa from 'papaparse';
 import { Play, Download, Plus, Trash2, AlertCircle, Loader2, X, Activity, FileSpreadsheet, Sparkles, Wand2, Search, Filter, Info, Square, Eye, Pencil } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -48,6 +48,11 @@ export default function App() {
 
   const colW = (key: string): number => columnWidths[key] ?? DEFAULT_WIDTHS[key] ?? 200;
 
+  const dragState = useRef<{
+    onMove: (e: PointerEvent) => void;
+    onUp: () => void;
+  } | null>(null);
+
   const startResize = (e: React.PointerEvent<HTMLDivElement>, colKey: string) => {
     e.preventDefault();
     const startX = e.clientX;
@@ -55,31 +60,39 @@ export default function App() {
 
     const onMove = (ev: PointerEvent) => {
       const newWidth = Math.max(60, startWidth + (ev.clientX - startX));
-      setColumnWidths(prev => {
-        const next = { ...prev, [colKey]: newWidth };
-        localStorage.setItem(LS_KEY, JSON.stringify(next));
-        return next;
-      });
+      setColumnWidths(prev => ({ ...prev, [colKey]: newWidth }));
     };
 
     const onUp = () => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      setColumnWidths(prev => {
+        localStorage.setItem(LS_KEY, JSON.stringify(prev));
+        return prev;
+      });
       dragState.current = null;
     };
 
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
     dragState.current = { onMove, onUp };
   };
+
+  useEffect(() => {
+    return () => {
+      if (dragState.current) {
+        document.removeEventListener('pointermove', dragState.current.onMove);
+        document.removeEventListener('pointerup', dragState.current.onUp);
+        document.removeEventListener('pointercancel', dragState.current.onUp);
+      }
+    };
+  }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const isHaltedRef = useRef(false);
-  const dragState = useRef<{
-    onMove: (e: PointerEvent) => void;
-    onUp: () => void;
-  } | null>(null);
 
   const filteredIndices = useMemo(() => {
     if (!csvData) return [];
