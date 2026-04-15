@@ -1039,15 +1039,31 @@ export default function App() {
                           }
                         }}
                       />
+                      <div className="resize-handle" onPointerDown={e => startResize(e, '__checkbox')} />
                     </th>
-                    <th className="sticky-col-header" style={{ left: stickyLeft.row }}>Row</th>
-                    <th className="sticky-col-header" style={{ left: stickyLeft.status }}>Status</th>
-                    <th className="sticky-col-header sticky-col-divider" style={{ left: stickyLeft.actions, textAlign: 'center' }}>Actions</th>
+                    <th className="sticky-col-header" style={{ left: stickyLeft.row }}>
+                      Row
+                      <div className="resize-handle" onPointerDown={e => startResize(e, '__row')} />
+                    </th>
+                    <th className="sticky-col-header" style={{ left: stickyLeft.status }}>
+                      Status
+                      <div className="resize-handle" onPointerDown={e => startResize(e, '__status')} />
+                    </th>
+                    <th className="sticky-col-header sticky-col-divider" style={{ left: stickyLeft.actions, textAlign: 'center' }}>
+                      Actions
+                      <div className="resize-handle" onPointerDown={e => startResize(e, '__actions')} />
+                    </th>
                     {visibleInputColumns.map(header => (
-                      <th key={`in_${header}`}>[IN] {header}</th>
+                      <th key={`in_${header}`}>
+                        [IN] {header}
+                        <div className="resize-handle" onPointerDown={e => startResize(e, header)} />
+                      </th>
                     ))}
                     {visibleOutputColumns.map(col => (
-                      <th key={`out_${col.id}`}>[OUT] {col.name}</th>
+                      <th key={`out_${col.id}`}>
+                        [OUT] {col.name}
+                        <div className="resize-handle" onPointerDown={e => startResize(e, col.name)} />
+                      </th>
                     ))}
                   </tr>
                 </thead>
