@@ -110,6 +110,10 @@ export async function processRowWithGemini(
     .map((col) => `${col}: ${row[col]}`)
     .join("\n");
 
+  const columnSpec = outputColumns
+    .map((col) => `  "${col.name}": ${col.type === 'number' ? 'number' : col.type === 'boolean' ? 'boolean' : 'string'} — ${col.description || col.name}`)
+    .join('\n');
+
   const fullPrompt = `
 You are a web analysis agent. Your task is to analyze the following data and perform web searches if necessary to find the requested information.
 
@@ -119,35 +123,17 @@ ${inputData}
 Task:
 ${prompt}
 
-Please provide the output in the requested JSON format.
+Respond with ONLY a valid JSON object (no markdown, no code fences) with exactly these fields:
+{
+${columnSpec}
+}
 `;
-
-  const properties: Record<string, any> = {};
-  const required: string[] = [];
-
-  outputColumns.forEach((col) => {
-    let schemaType = Type.STRING;
-    if (col.type === 'number') schemaType = Type.NUMBER;
-    else if (col.type === 'boolean') schemaType = Type.BOOLEAN;
-
-    properties[col.name] = {
-      type: schemaType,
-      description: col.description || `The value for ${col.name}`,
-    };
-    required.push(col.name);
-  });
 
   const response = await ai.models.generateContent({
     model: modelName,
     contents: fullPrompt,
     config: {
       tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties,
-        required,
-      },
     },
   });
 
@@ -156,8 +142,11 @@ Please provide the output in the requested JSON format.
     throw new Error("No response from Gemini");
   }
 
+  // Strip markdown code fences if the model wraps the JSON anyway
+  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+
   try {
-    const result = JSON.parse(text);
+    const result = JSON.parse(cleaned);
     return result;
   } catch (e) {
     throw new Error("Failed to parse Gemini response as JSON");

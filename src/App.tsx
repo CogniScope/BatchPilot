@@ -1,18 +1,9 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import Papa from 'papaparse';
 import { Play, Download, Plus, Trash2, AlertCircle, Loader2, X, Activity, FileSpreadsheet, Sparkles, Wand2, Search, Filter, Info, Square, Eye, Pencil } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { CsvData, OutputColumn, AgentTask, FilterRule } from './types';
 import { processRowWithGemini, generateOutputColumnsFromPrompt, improvePromptWithGemini } from './lib/gemini';
-
-const DEFAULT_WIDTHS: Record<string, number> = {
-  __checkbox: 40,
-  __row: 60,
-  __status: 120,
-  __actions: 120,
-};
-
-const LS_KEY = 'batch-llm-processor-column-widths';
 
 export default function App() {
   const [csvData, setCsvData] = useState<CsvData | null>(null);
@@ -37,58 +28,6 @@ export default function App() {
   const [showColumnMenu, setShowColumnMenu] = useState(false);
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
   const [editingColumnName, setEditingColumnName] = useState<string>('');
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
-    try {
-      const stored = localStorage.getItem(LS_KEY);
-      return stored ? JSON.parse(stored) : {};
-    } catch {
-      return {};
-    }
-  });
-
-  const colW = (key: string): number => columnWidths[key] ?? DEFAULT_WIDTHS[key] ?? 200;
-
-  const dragState = useRef<{
-    onMove: (e: PointerEvent) => void;
-    onUp: () => void;
-  } | null>(null);
-
-  const startResize = (e: React.PointerEvent<HTMLDivElement>, colKey: string) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startWidth = colW(colKey);
-
-    const onMove = (ev: PointerEvent) => {
-      const newWidth = Math.max(60, startWidth + (ev.clientX - startX));
-      setColumnWidths(prev => ({ ...prev, [colKey]: newWidth }));
-    };
-
-    const onUp = () => {
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
-      document.removeEventListener('pointercancel', onUp);
-      setColumnWidths(prev => {
-        localStorage.setItem(LS_KEY, JSON.stringify(prev));
-        return prev;
-      });
-      dragState.current = null;
-    };
-
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
-    document.addEventListener('pointercancel', onUp);
-    dragState.current = { onMove, onUp };
-  };
-
-  useEffect(() => {
-    return () => {
-      if (dragState.current) {
-        document.removeEventListener('pointermove', dragState.current.onMove);
-        document.removeEventListener('pointerup', dragState.current.onUp);
-        document.removeEventListener('pointercancel', dragState.current.onUp);
-      }
-    };
-  }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -566,13 +505,6 @@ export default function App() {
   const progress = tasks.length > 0 ? (completedCount / tasks.length) * 100 : 0;
   const activeWorkersCount = tasks.filter(t => t.status === 'running').length;
 
-  const stickyLeft = {
-    checkbox: 0,
-    row: colW('__checkbox'),
-    status: colW('__checkbox') + colW('__row'),
-    actions: colW('__checkbox') + colW('__row') + colW('__status'),
-  };
-
   return (
     <>
       <header>
@@ -1004,21 +936,9 @@ export default function App() {
 
             <div className="table-wrapper" ref={tableContainerRef}>
               <table>
-                <colgroup>
-                  <col style={{ width: colW('__checkbox') }} />
-                  <col style={{ width: colW('__row') }} />
-                  <col style={{ width: colW('__status') }} />
-                  <col style={{ width: colW('__actions') }} />
-                  {visibleInputColumns.map(h => (
-                    <col key={`col_in_${h}`} style={{ width: colW(h) }} />
-                  ))}
-                  {visibleOutputColumns.map(c => (
-                    <col key={`col_out_${c.name}`} style={{ width: colW(c.name) }} />
-                  ))}
-                </colgroup>
                 <thead>
                   <tr>
-                    <th className="sticky-col-header" style={{ left: stickyLeft.checkbox, textAlign: 'center' }}>
+                    <th className="sticky-col-header" style={{ left: 0, width: '40px', textAlign: 'center' }}>
                       <input 
                         type="checkbox" 
                         checked={filteredIndices.length > 0 && filteredIndices.every(i => selectedRows.has(i))}
@@ -1039,31 +959,15 @@ export default function App() {
                           }
                         }}
                       />
-                      <div className="resize-handle" onPointerDown={e => startResize(e, '__checkbox')} />
                     </th>
-                    <th className="sticky-col-header" style={{ left: stickyLeft.row }}>
-                      Row
-                      <div className="resize-handle" onPointerDown={e => startResize(e, '__row')} />
-                    </th>
-                    <th className="sticky-col-header" style={{ left: stickyLeft.status }}>
-                      Status
-                      <div className="resize-handle" onPointerDown={e => startResize(e, '__status')} />
-                    </th>
-                    <th className="sticky-col-header sticky-col-divider" style={{ left: stickyLeft.actions, textAlign: 'center' }}>
-                      Actions
-                      <div className="resize-handle" onPointerDown={e => startResize(e, '__actions')} />
-                    </th>
+                    <th className="sticky-col-header" style={{ left: '40px', width: '60px' }}>Row</th>
+                    <th className="sticky-col-header" style={{ left: '100px', width: '120px' }}>Status</th>
+                    <th className="sticky-col-header sticky-col-divider" style={{ left: '220px', width: '120px', textAlign: 'center' }}>Actions</th>
                     {visibleInputColumns.map(header => (
-                      <th key={`in_${header}`}>
-                        [IN] {header}
-                        <div className="resize-handle" onPointerDown={e => startResize(e, header)} />
-                      </th>
+                      <th key={`in_${header}`}>[IN] {header}</th>
                     ))}
                     {visibleOutputColumns.map(col => (
-                      <th key={`out_${col.id}`}>
-                        [OUT] {col.name}
-                        <div className="resize-handle" onPointerDown={e => startResize(e, col.name)} />
-                      </th>
+                      <th key={`out_${col.id}`}>[OUT] {col.name}</th>
                     ))}
                   </tr>
                 </thead>
@@ -1101,7 +1005,7 @@ export default function App() {
                         style={{ background: isRunning ? '#F9FAFB' : 'white' }}
                         className="group"
                       >
-                        <td className="sticky-col-cell" style={{ left: stickyLeft.checkbox, textAlign: 'center' }}>
+                        <td className="sticky-col-cell" style={{ left: 0, textAlign: 'center' }}>
                           <input 
                             type="checkbox"
                             checked={selectedRows.has(rowIndex)}
@@ -1116,8 +1020,8 @@ export default function App() {
                             }}
                           />
                         </td>
-                        <td className="sticky-col-cell" style={{ left: stickyLeft.row, color: 'var(--text-secondary)' }}>{rowIndex + 1}</td>
-                        <td className="sticky-col-cell" style={{ left: stickyLeft.status }}>
+                        <td className="sticky-col-cell" style={{ left: '40px', color: 'var(--text-secondary)' }}>{rowIndex + 1}</td>
+                        <td className="sticky-col-cell" style={{ left: '100px' }}>
                           {!task || task.status === 'pending' ? (
                             <div className="status-badge status-pending" title="Waiting to be processed">
                               <div className="dot dot-pending"></div>Pending
@@ -1136,7 +1040,7 @@ export default function App() {
                             </div>
                           )}
                         </td>
-                        <td className="sticky-col-cell sticky-col-divider" style={{ left: stickyLeft.actions, textAlign: 'center' }}>
+                        <td className="sticky-col-cell sticky-col-divider" style={{ left: '220px', textAlign: 'center' }}>
                           <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button 
                               onClick={() => runSingleRow(rowIndex)} 
