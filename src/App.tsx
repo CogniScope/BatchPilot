@@ -122,9 +122,11 @@ export default function App() {
   const visibleOutputColumns = outputColumns.filter(c => !hiddenColumns.has(c.name));
   const totalColumns = visibleInputColumns.length + visibleOutputColumns.length + 4;
 
-  const effectiveIndices = selectedRows.size > 0 
-    ? Array.from(selectedRows).filter(i => filteredIndices.includes(i))
-    : filteredIndices;
+  const effectiveIndices = useMemo(() => {
+    if (selectedRows.size === 0) return filteredIndices;
+    const filteredSet = new Set(filteredIndices);
+    return Array.from(selectedRows).filter(i => filteredSet.has(i));
+  }, [selectedRows, filteredIndices]);
 
   const toggleColumnVisibility = (colName: string) => {
     setHiddenColumns(prev => {
