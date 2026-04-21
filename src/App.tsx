@@ -1,6 +1,6 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Papa from 'papaparse';
-import { Play, Download, Plus, Trash2, AlertCircle, Loader2, X, Activity, FileSpreadsheet, Sparkles, Wand2, Search, Filter, Info, Square, Eye, Pencil } from 'lucide-react';
+import { Upload, Play, Download, Plus, Trash2, AlertCircle, CheckCircle2, Loader2, X, Activity, FileSpreadsheet, Sparkles, Wand2, Search, Filter, Info, Square, Eye, Pencil } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { CsvData, OutputColumn, AgentTask, FilterRule } from './types';
 import { processRowWithGemini, generateOutputColumnsFromPrompt, improvePromptWithGemini } from './lib/gemini';
@@ -13,6 +13,8 @@ export default function App() {
   ]);
   const [prompt, setPrompt] = useState<string>('Research the company website and identify the primary CRM and Marketing Automation tools they currently utilize. If not found, look for LinkedIn hiring posts for clues.');
   const [selectedModel, setSelectedModel] = useState<string>('gemini-3-flash-preview');
+  const [enableWebSearch, setEnableWebSearch] = useState<boolean>(true);
+  const [customApiKey, setCustomApiKey] = useState<string>(() => localStorage.getItem('gemini_custom_api_key') || '');
   const [tasks, setTasks] = useState<AgentTask[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
@@ -122,11 +124,9 @@ export default function App() {
   const visibleOutputColumns = outputColumns.filter(c => !hiddenColumns.has(c.name));
   const totalColumns = visibleInputColumns.length + visibleOutputColumns.length + 4;
 
-  const effectiveIndices = useMemo(() => {
-    if (selectedRows.size === 0) return filteredIndices;
-    const filteredSet = new Set(filteredIndices);
-    return Array.from(selectedRows).filter(i => filteredSet.has(i));
-  }, [selectedRows, filteredIndices]);
+  const effectiveIndices = selectedRows.size > 0 
+    ? Array.from(selectedRows).filter(i => filteredIndices.includes(i))
+    : filteredIndices;
 
   const toggleColumnVisibility = (colName: string) => {
     setHiddenColumns(prev => {
@@ -154,7 +154,7 @@ export default function App() {
     ]);
   };
 
-  const updateFilterRule = (id: string, field: keyof FilterRule, value: string) => {
+  const updateFilterRule = (id: string, field: keyof FilterRule, value: any) => {
     setFilterRules(prev => prev.map(rule => rule.id === id ? { ...rule, [field]: value } : rule));
   };
 
@@ -170,7 +170,7 @@ export default function App() {
     setIsImprovingPrompt(true);
     setError(null);
     try {
-      const improved = await improvePromptWithGemini(prompt, selectedModel);
+      const improved = await improvePromptWithGemini(prompt, selectedModel, customApiKey);
       if (improved) {
         setPrompt(improved);
       }
@@ -189,7 +189,7 @@ export default function App() {
     setIsGeneratingColumns(true);
     setError(null);
     try {
-      const generated = await generateOutputColumnsFromPrompt(prompt, selectedModel);
+      const generated = await generateOutputColumnsFromPrompt(prompt, selectedModel, customApiKey);
       if (generated.length > 0) {
         setOutputColumns(generated);
       }
@@ -197,6 +197,16 @@ export default function App() {
       setError(`Failed to generate columns: ${err.message}`);
     } finally {
       setIsGeneratingColumns(false);
+    }
+  };
+
+  const handleCustomApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setCustomApiKey(val);
+    if (val) {
+      localStorage.setItem('gemini_custom_api_key', val);
+    } else {
+      localStorage.removeItem('gemini_custom_api_key');
     }
   };
 
@@ -346,7 +356,7 @@ export default function App() {
       return newTasks;
     });
 
-    // Process in parallel with a concurrency limit
+    // Process in parallel with a concurrency limit (e.g., 5)
     const concurrencyLimit = 25;
     let currentIndex = 0;
     const indicesToProcess = [...effectiveIndices];
@@ -360,7 +370,7 @@ export default function App() {
       setTasks(prev => prev.map(t => t.rowId === taskIndex ? { ...t, status: 'running' } : t));
 
       try {
-        const result = await processRowWithGemini(row, prompt, selectedInputColumns, outputColumns, selectedModel);
+        const result = await processRowWithGemini(row, prompt, selectedInputColumns, outputColumns, selectedModel, enableWebSearch, customApiKey);
         setTasks(prev => prev.map(t => t.rowId === taskIndex ? { ...t, status: 'completed', result } : t));
       } catch (err: any) {
         setTasks(prev => prev.map(t => t.rowId === taskIndex ? { ...t, status: 'error', error: err.message } : t));
@@ -401,7 +411,7 @@ export default function App() {
     });
 
     try {
-      const result = await processRowWithGemini(row, prompt, selectedInputColumns, outputColumns, selectedModel);
+      const result = await processRowWithGemini(row, prompt, selectedInputColumns, outputColumns, selectedModel, enableWebSearch, customApiKey);
       setTasks(prev => prev.map(t => t.rowId === rowIndex ? { ...t, status: 'completed', result } : t));
     } catch (err: any) {
       setTasks(prev => prev.map(t => t.rowId === rowIndex ? { ...t, status: 'error', error: err.message } : t));
@@ -437,7 +447,6 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   const deleteSingleRow = (rowIndex: number) => {
@@ -498,7 +507,6 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   const completedCount = tasks.filter(t => t.status === 'completed' || t.status === 'error').length;
@@ -678,7 +686,7 @@ export default function App() {
                   />
                   <select
                     value={col.type}
-                    onChange={(e) => updateOutputColumn(col.id, 'type', e.target.value as OutputColumn['type'])}
+                    onChange={(e) => updateOutputColumn(col.id, 'type', e.target.value as any)}
                     disabled={isProcessing}
                     className="w-24 text-xs shrink-0"
                     title="Data Type"
@@ -722,9 +730,43 @@ export default function App() {
               <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Best Reasoning)</option>
               <option value="gemini-3-flash-preview">Gemini 3.0 Flash</option>
               <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (Faster)</option>
-              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+              <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (Fasterer)</option>
             </select>
+          </div>
+
+          <div className="form-group flex justify-between items-center bg-gray-50 p-3 rounded-md border border-gray-200">
+            <label className="flex items-center gap-1 cursor-pointer">
+              <span className="text-sm font-medium">Use Google Web Search</span>
+              <div className="tooltip-container">
+                <Info className="w-3 h-3 text-gray-400 cursor-help" />
+                <span className="tooltip-text">Allows the agent to search the internet to find data. Disable this to save API rate limits if your task only extracts data from the CSV.</span>
+              </div>
+            </label>
+            <input 
+              type="checkbox" 
+              className="w-4 h-4 text-[var(--accent)]"
+              checked={enableWebSearch}
+              onChange={(e) => setEnableWebSearch(e.target.checked)}
+              disabled={isProcessing}
+            />
+          </div>
+
+          <div className="form-group flex justify-between items-center bg-gray-50 p-3 rounded-md border border-gray-200">
+            <div>
+              <span className="text-sm font-medium block">Override Gemini API Key</span>
+              <p className="text-xs text-gray-500 max-w-[200px] mt-1">Bypass shared limits with your own Tier 3 API Key (stored locally).</p>
+            </div>
+            <div>
+              <input
+                type="password"
+                className="input-field py-1.5 text-sm bg-white"
+                placeholder="AIzaSy..."
+                value={customApiKey}
+                onChange={handleCustomApiKeyChange}
+                disabled={isProcessing}
+                style={{ width: '180px' }}
+              />
+            </div>
           </div>
 
           {isProcessing ? (
@@ -883,9 +925,7 @@ export default function App() {
                       className="input-field py-1 px-2 text-xs w-40"
                       value={`${rule.columnType}:${rule.column}`}
                       onChange={e => {
-                        const colonIndex = e.target.value.indexOf(':');
-                        const type = e.target.value.slice(0, colonIndex);
-                        const col = e.target.value.slice(colonIndex + 1);
+                        const [type, col] = e.target.value.split(':');
                         updateFilterRule(rule.id, 'columnType', type as 'input' | 'output');
                         updateFilterRule(rule.id, 'column', col);
                       }}

@@ -423,19 +423,3 @@ td {
   visibility: visible;
   opacity: 1;
 }
-
-/* Column resize handle */
-.resize-handle {
-  position: absolute;
-  right: 0;
-  top: 0;
-  height: 100%;
-  width: 5px;
-  cursor: col-resize;
-  user-select: none;
-  z-index: 1;
-}
-
-.resize-handle:hover {
-  background: rgba(79, 70, 229, 0.3);
-}
