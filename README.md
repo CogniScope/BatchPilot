@@ -1,4 +1,4 @@
-# BatchPilot
+<img width="846" height="178" alt="batchpilot_logo" src="https://github.com/user-attachments/assets/25dff506-55c8-4465-901b-4084fc922e17" />
 
 Run AI prompts against tabular CSV data in bulk using Gemini. Upload a CSV, define an agent instruction and output columns, and process hundreds of rows in parallel — results appear live in the table.
 
