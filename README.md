@@ -4,65 +4,93 @@
 
 # Batch LLM Processor
 
-A fast web application for running AI prompts against tabular data in bulk using Gemini on Vertex AI.
+Run AI prompts against tabular CSV data in bulk using Gemini. Upload a CSV, define an agent instruction and output columns, and process hundreds of rows in parallel — results appear live in the table.
 
-The app is split into two processes:
+## Features
 
-- **Vite dev server** (port 3000) — serves the React UI.
-- **Express API server** (port 3001) — calls Gemini via `@google/genai` in Vertex AI mode using Application Default Credentials. The browser never sees credentials.
+- **Bulk processing** — up to 25 concurrent Gemini calls with live status per row
+- **Google Web Search** — optionally ground each call with real-time search results
+- **Structured output** — define typed output columns; Gemini returns validated JSON
+- **AI-assisted setup** — auto-generate output columns and improve prompts with one click
+- **Dual auth** — use a free Google AI Studio API key or your own GCP project via Vertex AI ADC
 
-## Run Locally
+## Architecture
 
-**Prerequisites:**
-- Node.js
-- `gcloud` CLI authenticated to a project that has the Vertex AI API enabled
+The app runs as two processes:
 
-1. Install dependencies:
+- **Vite dev server** (port 3000) — React UI
+- **Express API server** (port 3001) — proxies all Gemini calls server-side so credentials never reach the browser
+
+## Getting Started
+
+**Prerequisites:** Node.js 18+
+
+```bash
+npm install
+```
+
+Then pick an auth mode:
+
+---
+
+### Option A — Google AI Studio (easiest, no GCP needed)
+
+1. Get a free API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+2. Start the app:
+   ```bash
+   npm run dev
    ```
-   npm install
-   ```
+3. Open [http://localhost:3000](http://localhost:3000), select **AI Studio Key** in the sidebar, and paste your key.
 
-2. Authenticate Application Default Credentials (one-time):
-   ```
+No `.env.local` configuration needed for this path.
+
+---
+
+### Option B — Vertex AI via Application Default Credentials
+
+Calls are billed to your GCP project. Requires the [Vertex AI API](https://console.cloud.google.com/apis/library/aiplatform.googleapis.com) to be enabled.
+
+1. Authenticate once:
+   ```bash
    gcloud auth application-default login
    ```
 
-3. Configure your project in `.env.local` (see `.env.example`):
+2. Create `.env.local` in the project root (see `.env.example`):
    ```
    GOOGLE_CLOUD_PROJECT=your-gcp-project-id
    GOOGLE_CLOUD_LOCATION=global
    GOOGLE_GENAI_USE_VERTEXAI=True
-   SERVER_PORT=3001
    ```
 
-4. Run the app (boots the API server and the Vite UI together):
-   ```
+3. Start the app:
+   ```bash
    npm run dev
    ```
 
-   Open http://localhost:3000.
+4. Open [http://localhost:3000](http://localhost:3000) — **Vertex ADC** is selected by default in the sidebar.
 
-## How auth works
-
-`server/index.ts` initializes the SDK with:
-
-```ts
-new GoogleGenAI({
-  vertexai: true,
-  project: process.env.GOOGLE_CLOUD_PROJECT,
-  location: process.env.GOOGLE_CLOUD_LOCATION,
-});
-```
-
-In Vertex AI mode the SDK obtains tokens through Application Default Credentials, so usage is billed to the configured GCP project. No `GEMINI_API_KEY` / AI Studio key is required or supported.
+---
 
 ## Production
 
-Build the static frontend, then run the Express server which serves `dist/` and exposes `/api/*`:
+Build the static frontend, then run the Express server (serves `dist/` and `/api/*` from the same origin):
 
-```
+```bash
 npm run build
 npm start
 ```
 
-The server reads `NODE_ENV=production` and serves the built UI from the same origin.
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start both the API server and Vite UI (hot-reload) |
+| `npm run dev:server` | API server only |
+| `npm run dev:client` | Vite UI only |
+| `npm run build` | Build the frontend for production |
+| `npm start` | Run the production server (serves built UI + API) |
+| `npm run lint` | TypeScript type check |
+
+## License
+
+MIT — see [LICENSE](LICENSE).
