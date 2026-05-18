@@ -537,7 +537,19 @@ export default function App() {
           <div>
             <div className="section-title">Source Data</div>
             {!csvData ? (
-              <div className="upload-box" onClick={() => fileInputRef.current?.click()}>
+              <div
+                className="upload-box"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) {
+                    const syntheticEvent = { target: { files: e.dataTransfer.files, value: '' } } as unknown as React.ChangeEvent<HTMLInputElement>;
+                    handleFileUpload(syntheticEvent);
+                  }
+                }}
+              >
                 <FileSpreadsheet className="w-8 h-8 mx-auto mb-2 text-[var(--text-secondary)] opacity-50" />
                 <span><strong>Click to upload CSV</strong></span><br />
                 <span style={{ fontSize: '0.75rem' }}>or drag and drop</span>
