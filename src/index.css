@@ -84,6 +84,7 @@ aside {
   flex-direction: column;
   gap: 20px;
   overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
 }
 

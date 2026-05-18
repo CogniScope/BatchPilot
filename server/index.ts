@@ -192,6 +192,10 @@ app.post('/api/process-row', async (req: Request, res: Response) => {
     .map((col) => `${col}: ${row[col]}`)
     .join('\n');
 
+  const fieldsList = outputColumns
+    .map((col) => `- ${col.name}${col.description ? `: ${col.description}` : ''}`)
+    .join('\n');
+
   const basePrompt = `
 You are a web analysis agent. Your task is to analyze the following data and perform web searches if necessary to find the requested information.
 
@@ -200,6 +204,9 @@ ${inputData}
 
 Task:
 ${prompt}
+
+Fields to extract:
+${fieldsList}
 
 Please provide the output in the requested JSON format.
 `;
