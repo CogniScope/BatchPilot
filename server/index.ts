@@ -10,18 +10,19 @@ import type { OutputColumn } from '../src/types';
 const project = process.env.GOOGLE_CLOUD_PROJECT;
 const location = process.env.GOOGLE_CLOUD_LOCATION || 'global';
 
-if (!project) {
-  console.error('[server] GOOGLE_CLOUD_PROJECT is not set. Configure it in .env.local.');
-  process.exit(1);
-}
+// Create the Vertex ADC client only when GOOGLE_CLOUD_PROJECT is available.
+// If it's missing the server still starts; Vertex mode requests will fail at
+// request time with a clear message.
+const ai = project
+  ? new GoogleGenAI({ vertexai: true, project, location })
+  : null;
 
-// Vertex AI mode authenticates via Application Default Credentials.
-// Run `gcloud auth application-default login` once on the host before starting.
-const ai = new GoogleGenAI({
-  vertexai: true,
-  project,
-  location,
-});
+if (!project) {
+  console.warn(
+    '[server] GOOGLE_CLOUD_PROJECT is not set — Vertex AI mode will be unavailable. ' +
+    'Set it in .env.local or use AI Studio Key mode instead.'
+  );
+}
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -38,12 +39,34 @@ function stripJsonFences(text: string): string {
 
 function sendError(res: Response, err: unknown, fallback: string) {
   const message = err instanceof Error ? err.message : String(err);
+  const status = (err as any)?.status ?? 500;
   console.error(`[server] ${fallback}:`, message);
-  res.status(500).json({ error: message || fallback });
+  res.status(status).json({ error: message || fallback });
+}
+
+function getClient(authMode?: string, apiKey?: string): GoogleGenAI {
+  if (authMode === 'aistudio') {
+    if (!apiKey) {
+      throw Object.assign(
+        new Error('API key is required for AI Studio mode. Enter one in the Auth Mode section of the sidebar.'),
+        { status: 400 }
+      );
+    }
+    return new GoogleGenAI({ apiKey });
+  }
+  if (!ai) {
+    throw Object.assign(
+      new Error('GOOGLE_CLOUD_PROJECT is not set. Configure it in .env.local for Vertex AI mode.'),
+      { status: 400 }
+    );
+  }
+  return ai;
 }
 
 app.post('/api/improve-prompt', async (req: Request, res: Response) => {
-  const { prompt, model } = req.body as { prompt?: string; model?: string };
+  const { prompt, model, authMode, apiKey } = req.body as {
+    prompt?: string; model?: string; authMode?: string; apiKey?: string;
+  };
   if (!prompt || !model) {
     return res.status(400).json({ error: 'prompt and model are required' });
   }
@@ -59,7 +82,8 @@ ${prompt}
 `;
 
   try {
-    const response = await ai.models.generateContent({
+    const client = getClient(authMode, apiKey);
+    const response = await client.models.generateContent({
       model,
       contents: fullPrompt,
     });
@@ -74,7 +98,9 @@ ${prompt}
 });
 
 app.post('/api/generate-columns', async (req: Request, res: Response) => {
-  const { prompt, model } = req.body as { prompt?: string; model?: string };
+  const { prompt, model, authMode, apiKey } = req.body as {
+    prompt?: string; model?: string; authMode?: string; apiKey?: string;
+  };
   if (!prompt || !model) {
     return res.status(400).json({ error: 'prompt and model are required' });
   }
@@ -88,7 +114,8 @@ ${prompt}
 `;
 
   try {
-    const response = await ai.models.generateContent({
+    const client = getClient(authMode, apiKey);
+    const response = await client.models.generateContent({
       model,
       contents: fullPrompt,
       config: {
@@ -142,6 +169,8 @@ app.post('/api/process-row', async (req: Request, res: Response) => {
     outputColumns,
     model,
     enableWebSearch,
+    authMode,
+    apiKey,
   } = req.body as {
     row?: Record<string, string>;
     prompt?: string;
@@ -149,6 +178,8 @@ app.post('/api/process-row', async (req: Request, res: Response) => {
     outputColumns?: OutputColumn[];
     model?: string;
     enableWebSearch?: boolean;
+    authMode?: string;
+    apiKey?: string;
   };
 
   if (!row || !prompt || !inputColumns || !outputColumns || !model) {
@@ -213,7 +244,8 @@ The JSON object must have exactly the following keys: ${required.join(', ')}.`;
   }
 
   try {
-    const response = await ai.models.generateContent({
+    const client = getClient(authMode, apiKey);
+    const response = await client.models.generateContent({
       model,
       contents: finalPrompt,
       config,
