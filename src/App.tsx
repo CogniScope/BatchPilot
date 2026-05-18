@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Papa from 'papaparse';
-import { Upload, Play, Download, Plus, Trash2, AlertCircle, CheckCircle2, Loader2, X, Activity, FileSpreadsheet, Sparkles, Wand2, Search, Filter, Info, Square, Eye, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Upload, Play, Download, Plus, Trash2, AlertCircle, CheckCircle2, Loader2, X, FileSpreadsheet, Sparkles, Wand2, Filter, Info, Square, Eye, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
+import logo from './assets/batchpilot_logo.png';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { CsvData, OutputColumn, AgentTask, FilterRule } from './types';
 import { processRowWithGemini, generateOutputColumnsFromPrompt, improvePromptWithGemini } from './lib/gemini';
@@ -9,9 +10,13 @@ export default function App() {
   const [csvData, setCsvData] = useState<CsvData | null>(null);
   const [selectedInputColumns, setSelectedInputColumns] = useState<string[]>([]);
   const [outputColumns, setOutputColumns] = useState<OutputColumn[]>([
-    { id: '1', name: 'technological_stack', description: 'Find CRM and Marketing tools used', type: 'string' }
+    { id: '1', name: 'game_count', description: 'The total number of games available or developed', type: 'string' },
+    { id: '2', name: 'game_types', description: 'The genres or categories of games offered', type: 'string' },
+    { id: '3', name: 'player_base_size', description: 'The reported number of active players, registered users, or downloads', type: 'string' },
+    { id: '4', name: 'notable_titles', description: 'The names of the most popular or flagship games', type: 'string' },
+    { id: '5', name: 'company_mission', description: "Brief overview of the company's focus or vision", type: 'string' },
   ]);
-  const [prompt, setPrompt] = useState<string>('Research the company website and identify the primary CRM and Marketing Automation tools they currently utilize. If not found, look for LinkedIn hiring posts for clues.');
+  const [prompt, setPrompt] = useState<string>('Research the company’s website to find out how many games they have, what types of games they offer, how large their player base is, and other relevant details.');
   const [selectedModel, setSelectedModel] = useState<string>('gemini-3-flash-preview');
   const [enableWebSearch, setEnableWebSearch] = useState<boolean>(true);
   const [customApiKey, setCustomApiKey] = useState<string>(() => localStorage.getItem('gemini_custom_api_key') || '');
@@ -39,6 +44,7 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const isHaltedRef = useRef(false);
+  const [runIndices, setRunIndices] = useState<Set<number>>(new Set());
 
   const filteredIndices = useMemo(() => {
     if (!csvData) return [];
@@ -121,6 +127,7 @@ export default function App() {
 
   useEffect(() => { setCurrentPage(1); }, [searchQuery, statusFilter]);
   useEffect(() => { setCurrentPage(1); }, [filterRules]);
+  useEffect(() => { setCurrentPage(p => Math.min(p, Math.max(1, totalPages))); }, [totalPages]);
 
   const rowVirtualizer = useVirtualizer({
     count: paginatedIndices.length,
@@ -179,7 +186,7 @@ export default function App() {
 
   const handleImprovePrompt = async () => {
     if (!prompt) {
-      setError("Please provide an initial Agent Instruction to improve.");
+      setError("Please provide an initial Research Instructions to improve.");
       return;
     }
     setIsImprovingPrompt(true);
@@ -198,7 +205,7 @@ export default function App() {
 
   const handleGenerateColumns = async () => {
     if (!prompt) {
-      setError("Please provide an Agent Instruction first.");
+      setError("Please provide an Research Instructions first.");
       return;
     }
     setIsGeneratingColumns(true);
@@ -350,6 +357,7 @@ export default function App() {
     setIsProcessing(true);
     setIsStopping(false);
     isHaltedRef.current = false;
+    setRunIndices(new Set(effectiveIndices));
     setError(null);
 
     // Initialize or update tasks for filtered rows
@@ -436,13 +444,13 @@ export default function App() {
   const exportSingleRow = (rowIndex: number) => {
     if (!csvData) return;
 
-    const outputHeaders = outputColumns.map(c => c.name);
-    const allHeaders = [...csvData.headers, ...outputHeaders];
+    const outputHeaders = visibleOutputColumns.map(c => c.name);
+    const allHeaders = [...visibleInputColumns, ...outputHeaders];
 
     const row = csvData.rows[rowIndex];
     const task = tasks.find(t => t.rowId === rowIndex);
     const resultData = task?.result || {};
-    
+
     const newRow: Record<string, string> = { ...row };
     outputHeaders.forEach(header => {
       newRow[header] = resultData[header] || (task?.status === 'error' ? 'ERROR' : '');
@@ -493,14 +501,14 @@ export default function App() {
   const downloadResults = () => {
     if (!csvData || tasks.length === 0) return;
 
-    const outputHeaders = outputColumns.map(c => c.name);
-    const allHeaders = [...csvData.headers, ...outputHeaders];
+    const outputHeaders = visibleOutputColumns.map(c => c.name);
+    const allHeaders = [...visibleInputColumns, ...outputHeaders];
 
     const dataToExport = effectiveIndices.map(index => {
       const row = csvData.rows[index];
       const task = tasks.find(t => t.rowId === index);
       const resultData = task?.result || {};
-      
+
       const newRow: Record<string, string> = { ...row };
       outputHeaders.forEach(header => {
         newRow[header] = resultData[header] || (task?.status === 'error' ? 'ERROR' : '');
@@ -524,16 +532,18 @@ export default function App() {
     document.body.removeChild(link);
   };
 
-  const completedCount = tasks.filter(t => t.status === 'completed' || t.status === 'error').length;
-  const progress = tasks.length > 0 ? (completedCount / tasks.length) * 100 : 0;
+  const runTotal = runIndices.size;
+  const completedCount = runTotal > 0
+    ? tasks.filter(t => runIndices.has(t.rowId) && (t.status === 'completed' || t.status === 'error')).length
+    : 0;
+  const progress = runTotal > 0 ? (completedCount / runTotal) * 100 : 0;
   const activeWorkersCount = tasks.filter(t => t.status === 'running').length;
 
   return (
     <>
       <header>
         <div className="logo">
-          <Activity className="w-5 h-5" />
-          Batch LLM Processor
+          <img src={logo} alt="BatchPilot" className="h-11" />
         </div>
       </header>
 
@@ -547,7 +557,7 @@ export default function App() {
           )}
 
           <div>
-            <div className="section-title">Source Data</div>
+            <div className="section-title">Dataset</div>
             {!csvData ? (
               <div
                 className="upload-box"
@@ -571,7 +581,7 @@ export default function App() {
                 <span><strong>Data Loaded</strong></span><br />
                 <span style={{ fontSize: '0.75rem' }}>{csvData.rows.length} rows uploaded</span>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); setCsvData(null); setTasks([]); }}
+                  onClick={(e) => { e.stopPropagation(); setCsvData(null); setTasks([]); setRunIndices(new Set()); }}
                   className="mt-2 text-xs text-[var(--accent)] hover:underline"
                   disabled={isProcessing}
                 >
@@ -656,7 +666,7 @@ export default function App() {
           <div className="form-group">
             <div className="flex justify-between items-center mb-1">
               <label className="flex items-center gap-1" style={{ marginBottom: 0 }}>
-                Agent Instruction
+                Research Instructions
                 <div className="tooltip-container">
                   <Info className="w-3 h-3 text-gray-400 cursor-help" />
                   <span className="tooltip-text">Provide clear instructions on what the AI should do with the input data. You can use the Improve button to let AI refine your prompt.</span>
@@ -681,7 +691,7 @@ export default function App() {
           <div className="form-group">
             <div className="flex justify-between items-center">
               <label className="flex items-center gap-1">
-                Output Columns
+                Fields to Generate
                 <div className="tooltip-container">
                   <Info className="w-3 h-3 text-gray-400 cursor-help" />
                   <span className="tooltip-text">Define the columns you want the AI to generate. The AI will extract or deduce this information from the input data.</span>
@@ -848,15 +858,15 @@ export default function App() {
           <div className="status-panel">
             <div className="progress-header">
               <div>
-                <h2 style={{ fontSize: '1rem', fontWeight: 600, margin: 0 }}>Processing Queue</h2>
+                <h2 style={{ fontSize: '1rem', fontWeight: 600, margin: 0 }}>Run Status</h2>
                 <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                  Parallel Workers: {activeWorkersCount} active
+                  Active Workers: {activeWorkersCount}
                 </span>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <span style={{ fontWeight: 600 }}>{Math.round(progress)}%</span>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  {completedCount} / {tasks.length || 0} records
+                  {completedCount} / {runTotal} records
                 </div>
               </div>
             </div>
@@ -868,19 +878,18 @@ export default function App() {
           <div className="table-container">
             <div className="table-header flex-col items-start gap-4 md:flex-row md:items-center">
               <div className="flex items-center justify-between w-full md:w-auto">
-                <h3>Live Output Preview</h3>
+                <h3>Results Preview</h3>
                 <span className="text-xs text-[var(--text-secondary)] ml-2 bg-gray-100 px-2 py-1 rounded-full">
                   {filteredIndices.length} rows
                 </span>
               </div>
               
               <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                <div className="relative flex-1 md:w-48">
-                  <Search className="w-4 h-4 absolute left-2.5 top-2 text-gray-400" />
-                  <input 
-                    type="text" 
-                    placeholder="Search data..." 
-                    className="input-field pl-8 py-1.5 text-sm w-full"
+                <div className="flex-1 md:w-48">
+                  <input
+                    type="text"
+                    placeholder="Search data..."
+                    className="input-field py-1.5 text-sm w-full"
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                   />
@@ -933,7 +942,7 @@ export default function App() {
                         ))}
                         {selectedInputColumns.length === 0 && <div className="px-3 py-1 text-xs text-gray-400">None selected</div>}
                         
-                        <div className="px-3 py-1 text-xs font-semibold text-gray-500 bg-gray-50 mt-1 border-t border-gray-100">Output Columns</div>
+                        <div className="px-3 py-1 text-xs font-semibold text-gray-500 bg-gray-50 mt-1 border-t border-gray-100">Fields to Generate</div>
                         {outputColumns.map(col => (
                           <label key={`menu_out_${col.name}`} className="flex items-center px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
                             <input 
@@ -984,7 +993,7 @@ export default function App() {
                       <optgroup label="Input Columns">
                         {selectedInputColumns.map(col => <option key={`in_${col}`} value={`input:${col}`}>{col}</option>)}
                       </optgroup>
-                      <optgroup label="Output Columns">
+                      <optgroup label="Fields to Generate">
                         {outputColumns.map(col => <option key={`out_${col.name}`} value={`output:${col.name}`}>{col.name}</option>)}
                       </optgroup>
                     </select>
@@ -1025,6 +1034,24 @@ export default function App() {
               </div>
             )}
 
+            {!csvData ? (
+              <div className="flex flex-col items-center justify-center py-24 px-8 text-center gap-4">
+                <h2 className="text-xl font-bold text-[var(--text-primary)]">
+                  Upload a CSV to get started
+                </h2>
+                <p className="text-sm text-[var(--text-secondary)] max-w-md leading-relaxed">
+                  Preview your data, choose which columns the AI should research and{' '}
+                  <span className="text-[var(--accent)] font-semibold">export enriched results!</span>{' '}
+                </p>
+                <button
+                  className="mt-2 btn-primary"
+                  style={{ width: 'auto', padding: '8px 24px' }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="w-4 h-4" /> Choose CSV file
+                </button>
+              </div>
+            ) : (
             <div className="table-wrapper" ref={tableContainerRef}>
               <table>
                 <thead>
@@ -1032,20 +1059,20 @@ export default function App() {
                     <th className="sticky-col-header" style={{ left: 0, width: '40px', textAlign: 'center' }}>
                       <input 
                         type="checkbox" 
-                        checked={filteredIndices.length > 0 && filteredIndices.every(i => selectedRows.has(i))}
+                        checked={paginatedIndices.length > 0 && paginatedIndices.every(i => selectedRows.has(i))}
                         ref={input => {
                           if (input) {
-                            input.indeterminate = selectedRows.size > 0 && !filteredIndices.every(i => selectedRows.has(i));
+                            input.indeterminate = paginatedIndices.some(i => selectedRows.has(i)) && !paginatedIndices.every(i => selectedRows.has(i));
                           }
                         }}
                         onChange={(e) => {
                           if (e.target.checked) {
                             const newSet = new Set(selectedRows);
-                            filteredIndices.forEach(i => newSet.add(i));
+                            paginatedIndices.forEach(i => newSet.add(i));
                             setSelectedRows(newSet);
                           } else {
                             const newSet = new Set(selectedRows);
-                            filteredIndices.forEach(i => newSet.delete(i));
+                            paginatedIndices.forEach(i => newSet.delete(i));
                             setSelectedRows(newSet);
                           }
                         }}
@@ -1063,14 +1090,7 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {!csvData && (
-                    <tr>
-                      <td colSpan={totalColumns} style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px' }}>
-                        Upload a CSV file to see preview
-                      </td>
-                    </tr>
-                  )}
-                  {csvData && filteredIndices.length === 0 && (
+                  {filteredIndices.length === 0 && (
                     <tr>
                       <td colSpan={totalColumns} style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px' }}>
                         No rows match the current filters.
@@ -1132,12 +1152,12 @@ export default function App() {
                           )}
                         </td>
                         <td className="sticky-col-cell sticky-col-divider" style={{ left: '220px', textAlign: 'center' }}>
-                          <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button 
-                              onClick={() => runSingleRow(rowIndex)} 
+                          <div className="flex items-center justify-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => runSingleRow(rowIndex)}
                               className="p-1 text-[var(--accent)] hover:bg-blue-50 rounded"
                               title="Run this row"
-                              disabled={isRunning}
+                              disabled={isRunning || isProcessing}
                             >
                               <Play className="w-4 h-4" />
                             </button>
@@ -1175,7 +1195,7 @@ export default function App() {
                               cellValue = '';
                             }
                           } else {
-                            cellValue = task?.result?.[col.name] || '-';
+                            cellValue = task?.result?.[col.name] != null ? String(task.result![col.name]) : '-';
                           }
                           const isError = task?.status === 'error';
                           return (
@@ -1202,6 +1222,7 @@ export default function App() {
                 </tbody>
               </table>
             </div>
+            )}
 
             {/* Pagination bar */}
             <div className="flex items-center justify-between px-4 py-2 border-t border-[var(--border)] bg-white text-sm text-[var(--text-secondary)]">

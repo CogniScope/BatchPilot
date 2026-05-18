@@ -1,6 +1,6 @@
 {
-  "name": "batch-llm-processor",
-  "description": "A web application for running AI prompts against tabular data in bulk, powered by Gemini via Vertex AI or Google AI Studio.",
+  "name": "batchpilot",
+  "description": "BatchPilot — run AI prompts against tabular data in bulk, powered by Gemini via Vertex AI or Google AI Studio.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

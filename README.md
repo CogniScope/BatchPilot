@@ -1,4 +1,4 @@
-# Batch LLM Processor
+# BatchPilot
 
 Run AI prompts against tabular CSV data in bulk using Gemini. Upload a CSV, define an agent instruction and output columns, and process hundreds of rows in parallel — results appear live in the table.
 
