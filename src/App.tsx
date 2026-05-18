@@ -445,7 +445,7 @@ export default function App() {
     if (!csvData) return;
 
     const outputHeaders = visibleOutputColumns.map(c => c.name);
-    const allHeaders = [...visibleInputColumns, ...outputHeaders];
+    const allHeaders = [...csvData.headers, ...outputHeaders];
 
     const row = csvData.rows[rowIndex];
     const task = tasks.find(t => t.rowId === rowIndex);
@@ -502,7 +502,7 @@ export default function App() {
     if (!csvData || tasks.length === 0) return;
 
     const outputHeaders = visibleOutputColumns.map(c => c.name);
-    const allHeaders = [...visibleInputColumns, ...outputHeaders];
+    const allHeaders = [...csvData.headers, ...outputHeaders];
 
     const dataToExport = effectiveIndices.map(index => {
       const row = csvData.rows[index];
