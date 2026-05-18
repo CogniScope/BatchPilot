@@ -15,6 +15,9 @@ export default function App() {
   const [selectedModel, setSelectedModel] = useState<string>('gemini-3-flash-preview');
   const [enableWebSearch, setEnableWebSearch] = useState<boolean>(true);
   const [customApiKey, setCustomApiKey] = useState<string>(() => localStorage.getItem('gemini_custom_api_key') || '');
+  const [authMode, setAuthMode] = useState<"vertex" | "aistudio">(
+    () => (localStorage.getItem('gemini_auth_mode') as "vertex" | "aistudio") || 'vertex'
+  );
   const [tasks, setTasks] = useState<AgentTask[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
@@ -170,7 +173,7 @@ export default function App() {
     setIsImprovingPrompt(true);
     setError(null);
     try {
-      const improved = await improvePromptWithGemini(prompt, selectedModel, customApiKey);
+      const improved = await improvePromptWithGemini(prompt, selectedModel, authMode, customApiKey);
       if (improved) {
         setPrompt(improved);
       }
@@ -189,7 +192,7 @@ export default function App() {
     setIsGeneratingColumns(true);
     setError(null);
     try {
-      const generated = await generateOutputColumnsFromPrompt(prompt, selectedModel, customApiKey);
+      const generated = await generateOutputColumnsFromPrompt(prompt, selectedModel, authMode, customApiKey);
       if (generated.length > 0) {
         setOutputColumns(generated);
       }
@@ -370,7 +373,7 @@ export default function App() {
       setTasks(prev => prev.map(t => t.rowId === taskIndex ? { ...t, status: 'running' } : t));
 
       try {
-        const result = await processRowWithGemini(row, prompt, selectedInputColumns, outputColumns, selectedModel, enableWebSearch, customApiKey);
+        const result = await processRowWithGemini(row, prompt, selectedInputColumns, outputColumns, selectedModel, enableWebSearch, authMode, customApiKey);
         setTasks(prev => prev.map(t => t.rowId === taskIndex ? { ...t, status: 'completed', result } : t));
       } catch (err: any) {
         setTasks(prev => prev.map(t => t.rowId === taskIndex ? { ...t, status: 'error', error: err.message } : t));
@@ -411,7 +414,7 @@ export default function App() {
     });
 
     try {
-      const result = await processRowWithGemini(row, prompt, selectedInputColumns, outputColumns, selectedModel, enableWebSearch, customApiKey);
+      const result = await processRowWithGemini(row, prompt, selectedInputColumns, outputColumns, selectedModel, enableWebSearch, authMode, customApiKey);
       setTasks(prev => prev.map(t => t.rowId === rowIndex ? { ...t, status: 'completed', result } : t));
     } catch (err: any) {
       setTasks(prev => prev.map(t => t.rowId === rowIndex ? { ...t, status: 'error', error: err.message } : t));
@@ -751,22 +754,46 @@ export default function App() {
             />
           </div>
 
-          <div className="form-group flex justify-between items-center bg-gray-50 p-3 rounded-md border border-gray-200">
-            <div>
-              <span className="text-sm font-medium block">Override Gemini API Key</span>
-              <p className="text-xs text-gray-500 max-w-[200px] mt-1">Bypass shared limits with your own Tier 3 API Key (stored locally).</p>
+          <div className="form-group">
+            <label className="flex items-center gap-1">
+              Auth Mode
+              <div className="tooltip-container">
+                <Info className="w-3 h-3 text-gray-400 cursor-help" />
+                <span className="tooltip-text">
+                  {authMode === 'vertex'
+                    ? 'Uses Google Cloud Application Default Credentials (ADC). Run `gcloud auth application-default login` once, then set GOOGLE_CLOUD_PROJECT in .env.local. Usage is billed to your GCP project.'
+                    : 'Uses a Google AI Studio API key. Get one free at aistudio.google.com/apikey — no GCP account needed. Key is stored locally in your browser.'}
+                </span>
+              </div>
+            </label>
+            <div className="flex rounded-md overflow-hidden border border-[var(--border)]">
+              <button
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${authMode === 'vertex' ? 'bg-[var(--accent)] text-white' : 'bg-white text-[var(--text-secondary)] hover:bg-gray-50'}`}
+                onClick={() => { setAuthMode('vertex'); localStorage.setItem('gemini_auth_mode', 'vertex'); }}
+                disabled={isProcessing}
+                type="button"
+              >
+                Vertex ADC
+              </button>
+              <button
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${authMode === 'aistudio' ? 'bg-[var(--accent)] text-white' : 'bg-white text-[var(--text-secondary)] hover:bg-gray-50'}`}
+                onClick={() => { setAuthMode('aistudio'); localStorage.setItem('gemini_auth_mode', 'aistudio'); }}
+                disabled={isProcessing}
+                type="button"
+              >
+                AI Studio Key
+              </button>
             </div>
-            <div>
+            {authMode === 'aistudio' && (
               <input
                 type="password"
-                className="input-field py-1.5 text-sm bg-white"
-                placeholder="AIzaSy..."
+                className="input-field py-1.5 text-sm bg-white mt-2 w-full"
+                placeholder="AIzaSy…"
                 value={customApiKey}
                 onChange={handleCustomApiKeyChange}
                 disabled={isProcessing}
-                style={{ width: '180px' }}
               />
-            </div>
+            )}
           </div>
 
           {isProcessing ? (

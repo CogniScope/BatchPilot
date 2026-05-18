@@ -1,10 +1,8 @@
 import { OutputColumn } from "../types";
 
-// All Gemini calls are proxied through the local Express server, which
-// authenticates to Vertex AI via Application Default Credentials. The
-// _customApiKey parameter is kept for backwards compatibility with the
-// existing UI but is no longer forwarded — server-side ADC is the only
-// supported credential path.
+// Gemini calls are proxied through the local Express server.
+// The server selects the auth client per-request: Vertex AI ADC when
+// authMode is "vertex", or an AI Studio API key when authMode is "aistudio".
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   let res: Response;
@@ -37,11 +35,14 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 export async function improvePromptWithGemini(
   prompt: string,
   modelName: string = "gemini-3-flash-preview",
-  _customApiKey?: string
+  authMode: "vertex" | "aistudio" = "vertex",
+  apiKey: string = ""
 ): Promise<string> {
   const data = await postJson<{ text: string }>("/api/improve-prompt", {
     prompt,
     model: modelName,
+    authMode,
+    apiKey,
   });
   return data.text;
 }
@@ -49,11 +50,12 @@ export async function improvePromptWithGemini(
 export async function generateOutputColumnsFromPrompt(
   prompt: string,
   modelName: string = "gemini-3-flash-preview",
-  _customApiKey?: string
+  authMode: "vertex" | "aistudio" = "vertex",
+  apiKey: string = ""
 ): Promise<OutputColumn[]> {
   const data = await postJson<{ columns: OutputColumn[] }>(
     "/api/generate-columns",
-    { prompt, model: modelName }
+    { prompt, model: modelName, authMode, apiKey }
   );
   return data.columns;
 }
@@ -65,7 +67,8 @@ export async function processRowWithGemini(
   outputColumns: OutputColumn[],
   modelName: string = "gemini-3-flash-preview",
   enableWebSearch: boolean = true,
-  _customApiKey?: string
+  authMode: "vertex" | "aistudio" = "vertex",
+  apiKey: string = ""
 ): Promise<Record<string, string>> {
   const data = await postJson<{ result: Record<string, string> }>(
     "/api/process-row",
@@ -76,6 +79,8 @@ export async function processRowWithGemini(
       outputColumns,
       model: modelName,
       enableWebSearch,
+      authMode,
+      apiKey,
     }
   );
   return data.result;
