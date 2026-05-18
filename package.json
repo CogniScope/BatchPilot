@@ -1,6 +1,6 @@
 {
   "name": "batch-llm-processor",
-  "description": "A fast, client-side web application for running AI prompts against tabular data in bulk using Gemini models.",
+  "description": "A web application for running AI prompts against tabular data in bulk, powered by Gemini via Vertex AI or Google AI Studio.",
   "private": true,
   "version": "0.0.0",
   "type": "module",
