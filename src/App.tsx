@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Papa from 'papaparse';
-import { Upload, Play, Download, Plus, Trash2, AlertCircle, CheckCircle2, Loader2, X, Activity, FileSpreadsheet, Sparkles, Wand2, Search, Filter, Info, Square, Eye, Pencil } from 'lucide-react';
+import { Upload, Play, Download, Plus, Trash2, AlertCircle, CheckCircle2, Loader2, X, Activity, FileSpreadsheet, Sparkles, Wand2, Search, Filter, Info, Square, Eye, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { CsvData, OutputColumn, AgentTask, FilterRule } from './types';
 import { processRowWithGemini, generateOutputColumnsFromPrompt, improvePromptWithGemini } from './lib/gemini';
@@ -28,6 +28,8 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [filterRules, setFilterRules] = useState<FilterRule[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [rowsPerPage, setRowsPerPage] = useState<number>(50);
+  const [currentPage, setCurrentPage] = useState<number>(1);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
   const [showColumnMenu, setShowColumnMenu] = useState(false);
@@ -110,8 +112,18 @@ export default function App() {
       });
   }, [csvData, tasks, searchQuery, statusFilter, selectedInputColumns, outputColumns, filterRules]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredIndices.length / rowsPerPage));
+
+  const paginatedIndices = useMemo(
+    () => filteredIndices.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage),
+    [filteredIndices, currentPage, rowsPerPage]
+  );
+
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, statusFilter]);
+  useEffect(() => { setCurrentPage(1); }, [filterRules]);
+
   const rowVirtualizer = useVirtualizer({
-    count: filteredIndices.length,
+    count: paginatedIndices.length,
     getScrollElement: () => tableContainerRef.current,
     estimateSize: () => 49, // Approximate row height in pixels
     overscan: 10,
@@ -1071,7 +1083,7 @@ export default function App() {
                     </tr>
                   )}
                   {virtualItems.map((virtualRow) => {
-                    const rowIndex = filteredIndices[virtualRow.index];
+                    const rowIndex = paginatedIndices[virtualRow.index];
                     const row = csvData!.rows[rowIndex];
                     const task = tasks.find(t => t.rowId === rowIndex);
                     const isRunning = task?.status === 'running';
@@ -1189,6 +1201,49 @@ export default function App() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Pagination bar */}
+            <div className="flex items-center justify-between px-4 py-2 border-t border-[var(--border)] bg-white text-sm text-[var(--text-secondary)]">
+              <div className="flex items-center gap-2">
+                <span>Rows per page:</span>
+                <select
+                  className="input-field py-1 px-2 text-xs w-20"
+                  value={rowsPerPage}
+                  onChange={e => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                >
+                  {[50, 100, 200, 500, 1000].map(n => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span>
+                  {filteredIndices.length === 0 ? '0 rows' : (
+                    <>
+                      {(currentPage - 1) * rowsPerPage + 1}–{Math.min(currentPage * rowsPerPage, filteredIndices.length)} of {filteredIndices.length}
+                    </>
+                  )}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="px-2">Page {currentPage} of {totalPages}</span>
+                  <button
+                    className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
