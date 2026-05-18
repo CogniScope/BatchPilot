@@ -1139,10 +1139,30 @@ export default function App() {
                             <span className="tag">{row[header]}</span>
                           </td>
                         ))}
-                        {visibleOutputColumns.map(col => {
-                          const cellValue = isRunning ? `Processing row ${rowIndex + 1}...` : (task?.result?.[col.name] || (task?.status === 'error' ? 'ERROR' : '-'));
+                        {visibleOutputColumns.map((col, colIdx) => {
+                          let cellValue: string;
+                          if (isRunning) {
+                            cellValue = `Processing row ${rowIndex + 1}...`;
+                          } else if (task?.status === 'error') {
+                            if (colIdx === 0) {
+                              const msg = task.error || 'Error';
+                              cellValue = msg.length > 80 ? msg.slice(0, 80) + '…' : msg;
+                            } else {
+                              cellValue = '';
+                            }
+                          } else {
+                            cellValue = task?.result?.[col.name] || '-';
+                          }
+                          const isError = task?.status === 'error';
                           return (
-                            <td key={`out_${col.id}_${rowIndex}`} style={{ color: isRunning ? '#999' : 'inherit', fontStyle: isRunning ? 'italic' : 'normal' }} title={cellValue}>
+                            <td
+                              key={`out_${col.id}_${rowIndex}`}
+                              style={{
+                                color: isRunning ? '#999' : isError && colIdx === 0 ? '#ef4444' : 'inherit',
+                                fontStyle: isRunning ? 'italic' : 'normal',
+                              }}
+                              title={isError ? (task.error || 'Error') : cellValue}
+                            >
                               {cellValue}
                             </td>
                           );
