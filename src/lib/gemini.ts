@@ -7,11 +7,18 @@ import { OutputColumn } from "../types";
 // supported credential path.
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error(
+      "Cannot connect to the API server. Make sure it's running (npm run dev)."
+    );
+  }
 
   if (!res.ok) {
     let message = `Request to ${path} failed with status ${res.status}`;
@@ -19,7 +26,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
       const data = await res.json();
       if (data && typeof data.error === "string") message = data.error;
     } catch {
-      // ignore JSON parse errors and fall back to status text
+      // fall back to status text
     }
     throw new Error(message);
   }
