@@ -463,7 +463,8 @@ export default function App() {
 
     const newRow: Record<string, string> = { ...row };
     outputHeaders.forEach(header => {
-      newRow[header] = resultData[header] || (task?.status === 'error' ? 'ERROR' : '');
+      const val = resultData[header];
+      newRow[header] = val != null ? String(val) : (task?.status === 'error' ? 'ERROR' : '');
     });
 
     const csv = Papa.unparse({
@@ -527,7 +528,8 @@ export default function App() {
 
       const newRow: Record<string, string> = { ...row };
       outputHeaders.forEach(header => {
-        newRow[header] = resultData[header] || (task?.status === 'error' ? 'ERROR' : '');
+        const val = resultData[header];
+        newRow[header] = val != null ? String(val) : (task?.status === 'error' ? 'ERROR' : '');
       });
       return newRow;
     });
