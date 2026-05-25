@@ -40,6 +40,7 @@ export default function App() {
   const [showColumnMenu, setShowColumnMenu] = useState(false);
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
   const [editingColumnName, setEditingColumnName] = useState<string>('');
+  const [selectedDetailRow, setSelectedDetailRow] = useState<number | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -128,6 +129,15 @@ export default function App() {
   useEffect(() => { setCurrentPage(1); }, [searchQuery, statusFilter]);
   useEffect(() => { setCurrentPage(1); }, [filterRules]);
   useEffect(() => { setCurrentPage(p => Math.min(p, Math.max(1, totalPages))); }, [totalPages]);
+
+  useEffect(() => {
+    if (selectedDetailRow === null) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedDetailRow(null);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [selectedDetailRow]);
 
   const rowVirtualizer = useVirtualizer({
     count: paginatedIndices.length,
@@ -474,7 +484,13 @@ export default function App() {
 
   const deleteSingleRow = (rowIndex: number) => {
     if (!csvData) return;
-    
+
+    if (selectedDetailRow === rowIndex) {
+      setSelectedDetailRow(null);
+    } else if (selectedDetailRow !== null && selectedDetailRow > rowIndex) {
+      setSelectedDetailRow(prev => (prev as number) - 1);
+    }
+
     setCsvData(prev => {
       if (!prev) return prev;
       const newRows = [...prev.rows];
@@ -581,7 +597,7 @@ export default function App() {
                 <span><strong>Data Loaded</strong></span><br />
                 <span style={{ fontSize: '0.75rem' }}>{csvData.rows.length} rows uploaded</span>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); setCsvData(null); setTasks([]); setRunIndices(new Set()); }}
+                  onClick={(e) => { e.stopPropagation(); setCsvData(null); setTasks([]); setRunIndices(new Set()); setSelectedDetailRow(null); }}
                   className="mt-2 text-xs text-[var(--accent)] hover:underline"
                   disabled={isProcessing}
                 >
@@ -1109,12 +1125,16 @@ export default function App() {
                     const isRunning = task?.status === 'running';
                     
                     return (
-                      <tr 
-                        key={virtualRow.key} 
+                      <tr
+                        key={virtualRow.key}
                         data-index={virtualRow.index}
                         ref={rowVirtualizer.measureElement}
-                        style={{ background: isRunning ? '#F9FAFB' : 'white' }}
+                        style={{ background: isRunning ? '#F9FAFB' : 'white', cursor: 'pointer' }}
                         className="group"
+                        onClick={(e) => {
+                          if ((e.target as HTMLElement).closest('button, input')) return;
+                          setSelectedDetailRow(rowIndex);
+                        }}
                       >
                         <td className="sticky-col-cell" style={{ left: 0, textAlign: 'center' }}>
                           <input 
@@ -1269,6 +1289,76 @@ export default function App() {
           </div>
         </div>
       </main>
+      {selectedDetailRow !== null && csvData && (() => {
+        const detailRow = csvData.rows[selectedDetailRow];
+        const detailTask = tasks.find(t => t.rowId === selectedDetailRow);
+        return (
+          <>
+            <div className="detail-overlay" role="presentation" onClick={() => setSelectedDetailRow(null)} />
+            <div className="detail-panel" role="dialog" aria-modal="true">
+              <div className="detail-panel-header">
+                <div className="flex items-center gap-3">
+                  <span className="detail-panel-title">Row {selectedDetailRow + 1}</span>
+                  {!detailTask || detailTask.status === 'pending' ? (
+                    <div className="status-badge status-pending"><div className="dot dot-pending"></div>Pending</div>
+                  ) : detailTask.status === 'running' ? (
+                    <div className="status-badge status-active"><div className="dot dot-active"></div>Active</div>
+                  ) : detailTask.status === 'completed' ? (
+                    <div className="status-badge status-success"><div className="dot dot-success"></div>Success</div>
+                  ) : (
+                    <div className="status-badge status-error"><div className="dot dot-error"></div>Error</div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSelectedDetailRow(null)}
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="detail-panel-body">
+                <div className="detail-section">
+                  <div className="detail-section-title">Input Fields</div>
+                  {csvData.headers.map(header => (
+                    <div key={header} className="detail-field">
+                      <div className="detail-field-label">{header}</div>
+                      <div className="detail-field-value">{detailRow[header] || '—'}</div>
+                    </div>
+                  ))}
+                </div>
+                {outputColumns.length > 0 && (
+                  <div className="detail-section">
+                    <div className="detail-section-title">Output Fields</div>
+                    {detailTask?.status === 'error' && (
+                      <div className="p-3 mb-3 bg-red-50 border border-red-200 text-red-800 rounded-md text-sm">
+                        {detailTask.error || 'An error occurred processing this row.'}
+                      </div>
+                    )}
+                    {outputColumns.map(col => {
+                      let value: string;
+                      if (!detailTask || detailTask.status === 'pending') {
+                        value = '—';
+                      } else if (detailTask.status === 'running') {
+                        value = 'Processing...';
+                      } else if (detailTask.status === 'error') {
+                        value = '—';
+                      } else {
+                        value = detailTask.result?.[col.name] != null ? String(detailTask.result![col.name]) : '—';
+                      }
+                      return (
+                        <div key={col.id} className="detail-field">
+                          <div className="detail-field-label">{col.name}</div>
+                          <div className="detail-field-value">{value}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </>
   );
 }
