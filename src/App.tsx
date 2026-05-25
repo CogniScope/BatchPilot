@@ -42,6 +42,8 @@ export default function App() {
   const [editingColumnName, setEditingColumnName] = useState<string>('');
   const [selectedDetailRow, setSelectedDetailRow] = useState<number | null>(null);
 
+  const taskMap = useMemo(() => new Map(tasks.map(t => [t.rowId, t])), [tasks]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const isHaltedRef = useRef(false);
@@ -53,7 +55,7 @@ export default function App() {
       .map((_, index) => index)
       .filter(index => {
         const row = csvData.rows[index];
-        const task = tasks.find(t => t.rowId === index);
+        const task = taskMap.get(index);
         
         if (statusFilter !== 'all') {
           const currentStatus = task ? task.status : 'pending';
@@ -117,7 +119,7 @@ export default function App() {
 
         return true;
       });
-  }, [csvData, tasks, searchQuery, statusFilter, selectedInputColumns, outputColumns, filterRules]);
+  }, [csvData, taskMap, searchQuery, statusFilter, selectedInputColumns, outputColumns, filterRules]);
 
   const totalPages = Math.max(1, Math.ceil(filteredIndices.length / rowsPerPage));
 
@@ -1123,7 +1125,7 @@ export default function App() {
                   {virtualItems.map((virtualRow) => {
                     const rowIndex = paginatedIndices[virtualRow.index];
                     const row = csvData!.rows[rowIndex];
-                    const task = tasks.find(t => t.rowId === rowIndex);
+                    const task = taskMap.get(rowIndex);
                     const isRunning = task?.status === 'running';
                     
                     return (
@@ -1293,7 +1295,7 @@ export default function App() {
       </main>
       {selectedDetailRow !== null && csvData && (() => {
         const detailRow = csvData.rows[selectedDetailRow];
-        const detailTask = tasks.find(t => t.rowId === selectedDetailRow);
+        const detailTask = taskMap.get(selectedDetailRow);
         return (
           <>
             <div className="detail-overlay" role="presentation" onClick={() => setSelectedDetailRow(null)} />
