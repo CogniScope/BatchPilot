@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Papa from 'papaparse';
-import { Upload, Play, Download, Plus, Trash2, AlertCircle, CheckCircle2, Loader2, X, FileSpreadsheet, Sparkles, Wand2, Filter, Info, Square, Eye, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Upload, Play, Download, Plus, Trash2, AlertCircle, Loader2, X, FileSpreadsheet, Sparkles, Wand2, Filter, Info, Square, Eye, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
 import logo from './assets/batchpilot_logo.png';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { CsvData, OutputColumn, AgentTask, FilterRule } from './types';

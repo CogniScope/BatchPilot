@@ -52,14 +52,6 @@ header {
   gap: 8px;
 }
 
-.user-profile {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-}
-
 /* Main Layout */
 main {
   display: grid;
@@ -226,36 +218,6 @@ textarea {
   height: 100%;
   background: var(--accent);
   transition: width 0.3s ease;
-}
-
-.worker-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.worker-card {
-  padding: 10px;
-  background: #F9FAFB;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 0.75rem;
-}
-
-.worker-card span {
-  display: block;
-  color: var(--text-secondary);
-  font-weight: 500;
-  margin-bottom: 2px;
-}
-
-.worker-active {
-  border-left: 3px solid var(--success);
-}
-
-.worker-error {
-  border-left: 3px solid #EF4444;
 }
 
 /* Table Preview */
