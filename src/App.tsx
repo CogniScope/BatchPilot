@@ -188,7 +188,7 @@ export default function App() {
     ]);
   };
 
-  const updateFilterRule = (id: string, field: keyof FilterRule, value: any) => {
+  const updateFilterRule = (id: string, field: keyof FilterRule, value: FilterRule[keyof FilterRule]) => {
     setFilterRules(prev => prev.map(rule => rule.id === id ? { ...rule, [field]: value } : rule));
   };
 
@@ -743,7 +743,7 @@ export default function App() {
                   />
                   <select
                     value={col.type}
-                    onChange={(e) => updateOutputColumn(col.id, 'type', e.target.value as any)}
+                    onChange={(e) => updateOutputColumn(col.id, 'type', e.target.value as OutputColumn['type'])}
                     disabled={isProcessing}
                     className="w-24 text-xs shrink-0"
                     title="Data Type"
