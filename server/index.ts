@@ -282,15 +282,22 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, project, location });
 });
 
-// Optionally serve the built frontend in production.
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const distDir = path.resolve(__dirname, '..', 'dist');
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(distDir));
-  app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')));
+// On Vercel the frontend is served from the CDN and this file is imported as a
+// serverless function, so it must not serve static files or bind a port.
+// Everywhere else (local dev, `npm start`, Render/Railway/Cloud Run) it runs as
+// a normal long-lived server that also serves the built frontend.
+if (!process.env.VERCEL) {
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const distDir = path.resolve(__dirname, '..', 'dist');
+  if (process.env.NODE_ENV === 'production') {
+    app.use(express.static(distDir));
+    app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')));
+  }
+
+  const PORT = parseInt(process.env.SERVER_PORT || '3001', 10);
+  app.listen(PORT, () => {
+    console.log(`[server] listening on http://localhost:${PORT} (project=${project}, location=${location})`);
+  });
 }
 
-const PORT = parseInt(process.env.SERVER_PORT || '3001', 10);
-app.listen(PORT, () => {
-  console.log(`[server] listening on http://localhost:${PORT} (project=${project}, location=${location})`);
-});
+export default app;
