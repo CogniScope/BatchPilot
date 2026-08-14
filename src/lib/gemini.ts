@@ -1,8 +1,7 @@
 import { OutputColumn } from "../types";
 
-// Gemini calls are proxied through the local Express server.
-// The server selects the auth client per-request: Vertex AI ADC when
-// authMode is "vertex", or an AI Studio API key when authMode is "aistudio".
+// Gemini calls are proxied through the local Express server, which
+// authenticates each request with the AI Studio API key supplied by the caller.
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   let res: Response;
@@ -35,13 +34,11 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 export async function improvePromptWithGemini(
   prompt: string,
   modelName: string = "gemini-3-flash-preview",
-  authMode: "vertex" | "aistudio" = "vertex",
   apiKey: string = ""
 ): Promise<string> {
   const data = await postJson<{ text: string }>("/api/improve-prompt", {
     prompt,
     model: modelName,
-    authMode,
     apiKey,
   });
   return data.text;
@@ -50,12 +47,11 @@ export async function improvePromptWithGemini(
 export async function generateOutputColumnsFromPrompt(
   prompt: string,
   modelName: string = "gemini-3-flash-preview",
-  authMode: "vertex" | "aistudio" = "vertex",
   apiKey: string = ""
 ): Promise<OutputColumn[]> {
   const data = await postJson<{ columns: OutputColumn[] }>(
     "/api/generate-columns",
-    { prompt, model: modelName, authMode, apiKey }
+    { prompt, model: modelName, apiKey }
   );
   return data.columns;
 }
@@ -67,7 +63,6 @@ export async function processRowWithGemini(
   outputColumns: OutputColumn[],
   modelName: string = "gemini-3-flash-preview",
   enableWebSearch: boolean = true,
-  authMode: "vertex" | "aistudio" = "vertex",
   apiKey: string = ""
 ): Promise<Record<string, string>> {
   const data = await postJson<{ result: Record<string, string> }>(
@@ -79,7 +74,6 @@ export async function processRowWithGemini(
       outputColumns,
       model: modelName,
       enableWebSearch,
-      authMode,
       apiKey,
     }
   );

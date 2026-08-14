@@ -8,64 +8,30 @@ Run AI prompts against tabular CSV data in bulk using Gemini. Upload a CSV, defi
 - **Google Web Search** — optionally ground each call with real-time search results
 - **Structured output** — define typed output columns; Gemini returns validated JSON
 - **AI-assisted setup** — auto-generate output columns and improve prompts with one click
-- **Dual auth** — use a free Google AI Studio API key or your own GCP project via Vertex AI ADC
+- **Bring your own key** — a free Google AI Studio API key is all you need; no GCP account, no server-side configuration
 
 ## Architecture
 
-The app runs as two processes:
+- **React UI** — served by Vite in development (port 3000), as static files in production
+- **Express API server** (port 3001) — proxies all Gemini calls so the key is never sent to Google from the browser
 
-- **Vite dev server** (port 3000) — React UI
-- **Express API server** (port 3001) — proxies all Gemini calls server-side so credentials never reach the browser
+In development these run as two processes with Vite proxying `/api/*` to Express. In production a single Express process serves both the built UI and the API.
 
 ## Getting Started
 
 **Prerequisites:** Node.js 18+
 
-```bash
-npm install
-```
-
-Then pick an auth mode:
-
----
-
-### Option A — Google AI Studio (easiest, no GCP needed)
-
 1. Get a free API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
-2. Start the app:
+
+2. Install and start:
    ```bash
-   npm run dev
-   ```
-3. Open [http://localhost:3000](http://localhost:3000), select **AI Studio Key** in the sidebar, and paste your key.
-
-No `.env.local` configuration needed for this path.
-
----
-
-### Option B — Vertex AI via Application Default Credentials
-
-Calls are billed to your GCP project. Requires the [Vertex AI API](https://console.cloud.google.com/apis/library/aiplatform.googleapis.com) to be enabled.
-
-1. Authenticate once:
-   ```bash
-   gcloud auth application-default login
-   ```
-
-2. Create `.env.local` in the project root (see `.env.example`):
-   ```
-   GOOGLE_CLOUD_PROJECT=your-gcp-project-id
-   GOOGLE_CLOUD_LOCATION=global
-   GOOGLE_GENAI_USE_VERTEXAI=True
-   ```
-
-3. Start the app:
-   ```bash
+   npm install
    npm run dev
    ```
 
-4. Open [http://localhost:3000](http://localhost:3000) — **Vertex ADC** is selected by default in the sidebar.
+3. Open [http://localhost:3000](http://localhost:3000) and paste your key into the **API Key** field in the sidebar. It's stored in your browser's local storage and sent with each request.
 
----
+No environment configuration is required.
 
 ## Production
 
@@ -75,6 +41,10 @@ Build the static frontend, then run the Express server (serves `dist/` and `/api
 npm run build
 npm start
 ```
+
+### Deploying to Vercel
+
+Import the repository at [vercel.com/new](https://vercel.com/new) and accept the auto-detected Vite settings. [vercel.json](vercel.json) routes `/api/*` to [api/index.ts](api/index.ts), which serves the same Express app as a serverless function. No environment variables are needed.
 
 ## Scripts
 

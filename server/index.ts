@@ -7,23 +7,6 @@ import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
 import type { OutputColumn } from '../src/types';
 
-const project = process.env.GOOGLE_CLOUD_PROJECT;
-const location = process.env.GOOGLE_CLOUD_LOCATION || 'global';
-
-// Create the Vertex ADC client only when GOOGLE_CLOUD_PROJECT is available.
-// If it's missing the server still starts; Vertex mode requests will fail at
-// request time with a clear message.
-const ai = project
-  ? new GoogleGenAI({ vertexai: true, project, location })
-  : null;
-
-if (!project) {
-  console.warn(
-    '[server] GOOGLE_CLOUD_PROJECT is not set — Vertex AI mode will be unavailable. ' +
-    'Set it in .env.local or use AI Studio Key mode instead.'
-  );
-}
-
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 
@@ -44,28 +27,24 @@ function sendError(res: Response, err: unknown, fallback: string) {
   res.status(status).json({ error: message || fallback });
 }
 
-function getClient(authMode?: string, apiKey?: string): GoogleGenAI {
-  if (authMode === 'aistudio') {
-    if (!apiKey) {
-      throw Object.assign(
-        new Error('API key is required for AI Studio mode. Enter one in the Auth Mode section of the sidebar.'),
-        { status: 400 }
-      );
-    }
-    return new GoogleGenAI({ apiKey });
-  }
-  if (!ai) {
+// The API key is supplied per-request by the browser; the server holds no
+// credentials of its own.
+function getClient(apiKey?: string): GoogleGenAI {
+  if (!apiKey) {
     throw Object.assign(
-      new Error('GOOGLE_CLOUD_PROJECT is not set. Configure it in .env.local for Vertex AI mode.'),
+      new Error('API key is required. Enter one in the API Key section of the sidebar.'),
       { status: 400 }
     );
   }
-  return ai;
+  // vertexai must be explicit: without it the SDK falls back to
+  // GOOGLE_GENAI_USE_VERTEXAI from the environment and would route the key to
+  // the Vertex endpoint, which rejects it.
+  return new GoogleGenAI({ apiKey, vertexai: false });
 }
 
 app.post('/api/improve-prompt', async (req: Request, res: Response) => {
-  const { prompt, model, authMode, apiKey } = req.body as {
-    prompt?: string; model?: string; authMode?: string; apiKey?: string;
+  const { prompt, model, apiKey } = req.body as {
+    prompt?: string; model?: string; apiKey?: string;
   };
   if (!prompt || !model) {
     return res.status(400).json({ error: 'prompt and model are required' });
@@ -82,7 +61,7 @@ ${prompt}
 `;
 
   try {
-    const client = getClient(authMode, apiKey);
+    const client = getClient(apiKey);
     const response = await client.models.generateContent({
       model,
       contents: fullPrompt,
@@ -98,8 +77,8 @@ ${prompt}
 });
 
 app.post('/api/generate-columns', async (req: Request, res: Response) => {
-  const { prompt, model, authMode, apiKey } = req.body as {
-    prompt?: string; model?: string; authMode?: string; apiKey?: string;
+  const { prompt, model, apiKey } = req.body as {
+    prompt?: string; model?: string; apiKey?: string;
   };
   if (!prompt || !model) {
     return res.status(400).json({ error: 'prompt and model are required' });
@@ -114,7 +93,7 @@ ${prompt}
 `;
 
   try {
-    const client = getClient(authMode, apiKey);
+    const client = getClient(apiKey);
     const response = await client.models.generateContent({
       model,
       contents: fullPrompt,
@@ -169,7 +148,6 @@ app.post('/api/process-row', async (req: Request, res: Response) => {
     outputColumns,
     model,
     enableWebSearch,
-    authMode,
     apiKey,
   } = req.body as {
     row?: Record<string, string>;
@@ -178,7 +156,6 @@ app.post('/api/process-row', async (req: Request, res: Response) => {
     outputColumns?: OutputColumn[];
     model?: string;
     enableWebSearch?: boolean;
-    authMode?: string;
     apiKey?: string;
   };
 
@@ -251,7 +228,7 @@ The JSON object must have exactly the following keys: ${required.join(', ')}.`;
   }
 
   try {
-    const client = getClient(authMode, apiKey);
+    const client = getClient(apiKey);
     const response = await client.models.generateContent({
       model,
       contents: finalPrompt,
@@ -279,7 +256,7 @@ The JSON object must have exactly the following keys: ${required.join(', ')}.`;
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, project, location });
+  res.json({ ok: true });
 });
 
 // On Vercel the frontend is served from the CDN and this file is imported as a
@@ -296,7 +273,7 @@ if (!process.env.VERCEL) {
 
   const PORT = parseInt(process.env.SERVER_PORT || '3001', 10);
   app.listen(PORT, () => {
-    console.log(`[server] listening on http://localhost:${PORT} (project=${project}, location=${location})`);
+    console.log(`[server] listening on http://localhost:${PORT}`);
   });
 }
 
