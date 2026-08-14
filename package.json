@@ -7,8 +7,8 @@
   "scripts": {
     "dev": "concurrently -k -n server,client -c blue,magenta \"npm:dev:server\" \"npm:dev:client\"",
     "dev:client": "vite --port=3000 --host=0.0.0.0",
-    "dev:server": "tsx watch server/index.ts",
-    "start": "cross-env NODE_ENV=production tsx server/index.ts",
+    "dev:server": "tsx watch api/index.ts",
+    "start": "cross-env NODE_ENV=production tsx api/index.ts",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
