@@ -1,6 +1,3 @@
-import dotenv from 'dotenv';
-dotenv.config({ path: '.env.local' });
-
 import express, { Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -20,11 +17,23 @@ function stripJsonFences(text: string): string {
   return t;
 }
 
+// Google API errors carry a string status such as "PERMISSION_DENIED" rather
+// than an HTTP code. Passing that to res.status() sets an invalid status and
+// throws when the headers are written, which escapes the route's catch block
+// and takes the whole process (or serverless invocation) down, hiding the real
+// error — so only accept a genuine HTTP code.
+function toHttpStatus(err: unknown): number {
+  const raw = (err as { status?: unknown; code?: unknown } | null)?.status
+    ?? (err as { code?: unknown } | null)?.code;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  return Number.isInteger(n) && n >= 400 && n <= 599 ? n : 500;
+}
+
 function sendError(res: Response, err: unknown, fallback: string) {
   const message = err instanceof Error ? err.message : String(err);
-  const status = (err as any)?.status ?? 500;
   console.error(`[server] ${fallback}:`, message);
-  res.status(status).json({ error: message || fallback });
+  if (res.headersSent) return;
+  res.status(toHttpStatus(err)).json({ error: message || fallback });
 }
 
 // The API key is supplied per-request by the browser; the server holds no
